@@ -1,5 +1,5 @@
 import angular from 'angular';
-
+import { LogForgeViewAngular } from '@/react/portainer/logforge/LogForgeView';
 import { NotificationsViewAngular } from '@/react/portainer/notifications/NotificationsView';
 import { AccessHeaders } from '../authorization-guard';
 import authLogsViewModule from './auth-logs-view';
@@ -11,6 +11,7 @@ export default angular
   .service('UserActivity', UserActivity)
   .service('UserActivityService', UserActivityService)
   .component('notifications', NotificationsViewAngular)
+  .component('logforge', LogForgeViewAngular)
   .config(config).name;
 
 /* @ngInject */
@@ -58,4 +59,20 @@ function config($stateRegistryProvider) {
       docs: '/admin/notifications',
     },
   });
+
+  $stateRegistryProvider.register({
+    name: 'portainer.logforge',
+    url: '/logforge',
+    views: {
+      'content@': {
+        // Replace 'logforge' with the name of your component
+        component: 'logforge', 
+      },
+    },
+    data: {
+      docs: '/admin/logforge',
+    },
+  });
 }
+
+

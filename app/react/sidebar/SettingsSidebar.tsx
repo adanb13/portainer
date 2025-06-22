@@ -162,6 +162,12 @@ export function SettingsSidebar({ isPureAdmin, isAdmin, isTeamLeader }: Props) {
         label="Notifications"
         data-cy="portainerSidebar-notifications"
       />
+      <SidebarItem
+        to="portainer.logforge"
+        icon={Bell} // or another icon of your choice
+        label="LogForge"
+        data-cy="portainerSidebar-logforge"
+      />
       {isPureAdmin && (
         <SidebarParent
           to="portainer.settings"
