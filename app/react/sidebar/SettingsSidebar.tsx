@@ -6,6 +6,7 @@ import {
   Radio,
   FileText,
   Bell,
+  ShieldAlert
 } from 'lucide-react';
 
 import { usePublicSettings } from '@/react/portainer/settings/queries';
@@ -164,7 +165,7 @@ export function SettingsSidebar({ isPureAdmin, isAdmin, isTeamLeader }: Props) {
       />
       <SidebarItem
         to="portainer.logforge"
-        icon={Bell} // or another icon of your choice
+        icon={ShieldAlert}
         label="LogForge"
         data-cy="portainerSidebar-logforge"
       />
