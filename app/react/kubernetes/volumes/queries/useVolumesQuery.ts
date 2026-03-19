@@ -3,7 +3,7 @@ import { useQuery } from '@tanstack/react-query';
 import { EnvironmentId } from '@/react/portainer/environments/types';
 import { humanize } from '@/portainer/filters/filters';
 import { withGlobalError } from '@/react-tools/react-query';
-import axios from '@/portainer/services/axios';
+import axios from '@/portainer/services/axios/axios';
 import { Volume } from '@/kubernetes/models/volume/Volume';
 
 import { parseKubernetesAxiosError } from '../../axiosError';
@@ -14,10 +14,11 @@ import { appOwnerLabel } from '../../applications/constants';
 import { queryKeys } from './query-keys';
 
 // useQuery to get a list of all volumes in a cluster
-export function useAllVolumesQuery(
+export function useAllVolumesQuery<T = K8sVolumeInfo>(
   environmentId: EnvironmentId,
   queryOptions?: {
     refetchInterval?: number;
+    select?: (volumes: K8sVolumeInfo[]) => T[];
   }
 ) {
   return useQuery(
@@ -25,7 +26,7 @@ export function useAllVolumesQuery(
     () => getAllVolumes(environmentId, { withApplications: true }),
     {
       refetchInterval: queryOptions?.refetchInterval,
-      select: convertToVolumeViewModels,
+      select: queryOptions?.select,
       ...withGlobalError('Unable to retrieve volumes'),
     }
   );

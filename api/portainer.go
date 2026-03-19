@@ -7,17 +7,18 @@ import (
 	"net/http"
 	"time"
 
+	gittypes "github.com/portainer/portainer/api/git/types"
+	models "github.com/portainer/portainer/api/http/models/kubernetes"
+	"github.com/portainer/portainer/api/roar"
+	"github.com/portainer/portainer/pkg/featureflags"
+	httperror "github.com/portainer/portainer/pkg/libhttp/error"
+
 	"github.com/docker/docker/api/types"
 	"github.com/docker/docker/api/types/image"
 	"github.com/docker/docker/api/types/network"
 	"github.com/docker/docker/api/types/system"
 	"github.com/docker/docker/api/types/volume"
-	gittypes "github.com/portainer/portainer/api/git/types"
-	models "github.com/portainer/portainer/api/http/models/kubernetes"
-	"github.com/portainer/portainer/pkg/featureflags"
-	httperror "github.com/portainer/portainer/pkg/libhttp/error"
 	"github.com/segmentio/encoding/json"
-
 	"golang.org/x/oauth2"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/version"
@@ -28,6 +29,8 @@ type (
 	AccessPolicy struct {
 		// Role identifier. Reference the role that will be associated to this access policy
 		RoleID RoleID `json:"RoleId" example:"1"`
+		// Namespaces is a list of namespaces that this access policy applies to. Only used for namespaced level roles
+		Namespaces []string `json:"Namespaces,omitempty"`
 	}
 
 	// AgentPlatform represents a platform type for an Agent
@@ -110,6 +113,8 @@ type (
 		AdminPassword             *string
 		AdminPasswordFile         *string
 		Assets                    *string
+		CSP                       *bool
+		CompactDB                 *bool
 		Data                      *string
 		FeatureFlags              *[]string
 		EnableEdgeComputeFeatures *bool
@@ -120,14 +125,12 @@ type (
 		Templates                 *string
 		TLS                       *bool
 		TLSSkipVerify             *bool
+		HasTLSCacert              *bool
 		TLSCacert                 *string
 		TLSCert                   *string
 		TLSKey                    *string
 		HTTPDisabled              *bool
 		HTTPEnabled               *bool
-		SSL                       *bool
-		SSLCert                   *string
-		SSLKey                    *string
 		Rollback                  *bool
 		SnapshotInterval          *string
 		BaseURL                   *string
@@ -139,6 +142,7 @@ type (
 		LogMode                   *string
 		KubectlShellImage         *string
 		PullLimitCheckDisabled    *bool
+		TrustedOrigins            *string
 	}
 
 	// CustomTemplateVariableDefinition
@@ -213,26 +217,34 @@ type (
 
 	// DockerSnapshot represents a snapshot of a specific Docker environment(endpoint) at a specific time
 	DockerSnapshot struct {
-		Time                    int64             `json:"Time"`
-		DockerVersion           string            `json:"DockerVersion"`
-		Swarm                   bool              `json:"Swarm"`
-		TotalCPU                int               `json:"TotalCPU"`
-		TotalMemory             int64             `json:"TotalMemory"`
-		ContainerCount          int               `json:"ContainerCount"`
-		RunningContainerCount   int               `json:"RunningContainerCount"`
-		StoppedContainerCount   int               `json:"StoppedContainerCount"`
-		HealthyContainerCount   int               `json:"HealthyContainerCount"`
-		UnhealthyContainerCount int               `json:"UnhealthyContainerCount"`
-		VolumeCount             int               `json:"VolumeCount"`
-		ImageCount              int               `json:"ImageCount"`
-		ServiceCount            int               `json:"ServiceCount"`
-		StackCount              int               `json:"StackCount"`
-		SnapshotRaw             DockerSnapshotRaw `json:"DockerSnapshotRaw"`
-		NodeCount               int               `json:"NodeCount"`
-		GpuUseAll               bool              `json:"GpuUseAll"`
-		GpuUseList              []string          `json:"GpuUseList"`
-		IsPodman                bool              `json:"IsPodman"`
-		DiagnosticsData         *DiagnosticsData  `json:"DiagnosticsData"`
+		Time                    int64               `json:"Time"`
+		DockerVersion           string              `json:"DockerVersion"`
+		Swarm                   bool                `json:"Swarm"`
+		TotalCPU                int                 `json:"TotalCPU"`
+		TotalMemory             int64               `json:"TotalMemory"`
+		ContainerCount          int                 `json:"ContainerCount"`
+		RunningContainerCount   int                 `json:"RunningContainerCount"`
+		StoppedContainerCount   int                 `json:"StoppedContainerCount"`
+		HealthyContainerCount   int                 `json:"HealthyContainerCount"`
+		UnhealthyContainerCount int                 `json:"UnhealthyContainerCount"`
+		VolumeCount             int                 `json:"VolumeCount"`
+		ImageCount              int                 `json:"ImageCount"`
+		ServiceCount            int                 `json:"ServiceCount"`
+		StackCount              int                 `json:"StackCount"`
+		SnapshotRaw             DockerSnapshotRaw   `json:"DockerSnapshotRaw"`
+		NodeCount               int                 `json:"NodeCount"`
+		GpuUseAll               bool                `json:"GpuUseAll"`
+		GpuUseList              []string            `json:"GpuUseList"`
+		IsPodman                bool                `json:"IsPodman"`
+		DiagnosticsData         *DiagnosticsData    `json:"DiagnosticsData"`
+		PerformanceMetrics      *PerformanceMetrics `json:"PerformanceMetrics"`
+	}
+
+	// PerformanceMetrics represents the performance metrics of a Docker, Swarm, Podman, and Kubernetes environments
+	PerformanceMetrics struct {
+		CPUUsage     float64 `json:"CPUUsage,omitempty"`
+		MemoryUsage  float64 `json:"MemoryUsage,omitempty"`
+		NetworkUsage float64 `json:"NetworkUsage,omitempty"`
 	}
 
 	// DockerContainerSnapshot is an extent of Docker's Container struct
@@ -255,12 +267,15 @@ type (
 	// EdgeGroup represents an Edge group
 	EdgeGroup struct {
 		// EdgeGroup Identifier
-		ID           EdgeGroupID  `json:"Id" example:"1"`
-		Name         string       `json:"Name"`
-		Dynamic      bool         `json:"Dynamic"`
-		TagIDs       []TagID      `json:"TagIds"`
-		Endpoints    []EndpointID `json:"Endpoints"`
-		PartialMatch bool         `json:"PartialMatch"`
+		ID           EdgeGroupID           `json:"Id" example:"1"`
+		Name         string                `json:"Name"`
+		Dynamic      bool                  `json:"Dynamic"`
+		TagIDs       []TagID               `json:"TagIds"`
+		EndpointIDs  roar.Roar[EndpointID] `json:"EndpointIds"`
+		PartialMatch bool                  `json:"PartialMatch"`
+
+		// Deprecated: only used for API responses
+		Endpoints []EndpointID `json:"Endpoints"`
 	}
 
 	// EdgeGroupID represents an Edge group identifier
@@ -334,6 +349,22 @@ type (
 		DeploymentType EdgeStackDeploymentType `json:"DeploymentType"`
 		// Uses the manifest's namespaces instead of the default one
 		UseManifestNamespaces bool
+		// The username id which created this stack
+		CreatedByUserId string `example:"1"`
+		// The username which created this stack
+		CreatedBy string `example:"admin"`
+	}
+
+	// HelmConfig represents the Helm configuration for an edge stack
+	HelmConfig struct {
+		// Path to a Helm chart folder for Helm git deployments
+		ChartPath string `json:"ChartPath,omitempty" example:"charts/my-app"`
+		// Array of paths to Helm values YAML files for Helm git deployments
+		ValuesFiles []string `json:"ValuesFiles,omitempty" example:"['values/prod.yaml', 'values/secrets.yaml']"`
+		// Enable automatic rollback on deployment failure (equivalent to helm --atomic flag)
+		Atomic bool `json:"Atomic" example:"true"`
+		// Timeout for Helm operations (equivalent to helm --timeout flag)
+		Timeout string `json:"Timeout,omitempty" example:"5m0s"`
 	}
 
 	EdgeStackStatusForEnv struct {
@@ -341,6 +372,14 @@ type (
 		Status     []EdgeStackDeploymentStatus
 		// EE only feature
 		DeploymentInfo StackDeploymentInfo
+		// RePullImage is a flag to indicate whether the auto update is trigger to re-pull image
+		RePullImage bool `json:"RePullImage,omitempty"`
+		// ForceRedeploy is a flag to indicate whether the force redeployment is set for the current
+		// deployment of the edge stack. The redeployment could be triggered by GitOps Update or manually by user.
+		ForceRedeploy bool `json:"ForceRedeploy,omitempty"`
+
+		// Deprecated(2.36): use ForceRedeploy and RePullImage instead for cleaner
+		// responsibility, but keep it for backward compatibility. To remove in future versions (2.44+)
 		// ReadyRePullImage is a flag to indicate whether the auto update is trigger to re-pull image
 		ReadyRePullImage bool `json:"ReadyRePullImage,omitempty"`
 	}
@@ -409,7 +448,7 @@ type (
 		PublicURL        string           `json:"PublicURL" example:"docker.mydomain.tld:2375"`
 		Gpus             []Pair           `json:"Gpus"`
 		TLSConfig        TLSConfiguration `json:"TLSConfig"`
-		AzureCredentials AzureCredentials `json:"AzureCredentials,omitempty"`
+		AzureCredentials AzureCredentials `json:"AzureCredentials,omitzero"`
 		// List of tag identifiers to which this environment(endpoint) is associated
 		TagIDs []TagID `json:"TagIds"`
 		// The status of the environment(endpoint) (1 - up, 2 - down)
@@ -436,8 +475,6 @@ type (
 		AMTDeviceGUID string `json:"AMTDeviceGUID,omitempty" example:"4c4c4544-004b-3910-8037-b6c04f504633"`
 		// LastCheckInDate mark last check-in date on checkin
 		LastCheckInDate int64
-		// QueryDate of each query with the endpoints list
-		QueryDate int64
 		// Heartbeat indicates the heartbeat status of an edge environment
 		Heartbeat bool `json:"Heartbeat" example:"true"`
 
@@ -513,6 +550,70 @@ type (
 		Tags []string `json:"Tags,omitempty"`
 	}
 
+	PolicyChartSummary struct {
+		ChartName   string `json:"ChartName"`
+		Fingerprint string `json:"Fingerprint"`
+	}
+
+	PolicyChartStatus struct {
+		// EnvironmentID is the endpoint this status belongs to.
+		// Stored so that ReadAll can group statuses by endpoint without parsing keys.
+		EnvironmentID EndpointID        `json:"environmentID,omitempty"`
+		ChartName     string            `json:"chartName"`
+		Fingerprint   string            `json:"fingerprint"`
+		Status        HelmInstallStatus `json:"status"`
+		Message       string            `json:"message"`
+		Namespace     string            `json:"namespace"`
+		// Unix timestamp
+		LastAttemptTime int64 `json:"lastAttemptTime"`
+	}
+
+	ImageBundle struct {
+		FileName     string `json:"FileName"`
+		EncodedTarGz string `json:"EncodedTarGz"`
+	}
+
+	PolicyChartBundle struct {
+		PolicyChartSummary  `mapstructure:",squash"`
+		EncodedTgz          string             `json:"EncodedTgz"`
+		Namespace           string             `json:"Namespace"`
+		PreReleaseManifest  string             `json:"PreReleaseManifest,omitempty"`
+		EncodedValues       string             `json:"EncodedValues"`
+		PreInstallDeletions []ResourceDeletion `json:"PreInstallDeletions,omitempty"`
+		PreInstallAdoptions []ResourceAdoption `json:"PreInstallAdoptions,omitempty"`
+	}
+
+	// ResourceDeletion identifies an existing Kubernetes resource to delete before policy install
+	ResourceDeletion struct {
+		APIVersion string `json:"apiVersion" example:"v1" yaml:"apiVersion"`
+		Kind       string `json:"kind" example:"Secret" yaml:"kind"`
+		Name       string `json:"name" example:"registry-1" yaml:"name"`
+		Namespace  string `json:"namespace,omitempty" example:"default" yaml:"namespace,omitempty"`
+	}
+
+	// ResourceAdoption identifies an existing Kubernetes resource to adopt into a Helm release
+	ResourceAdoption struct {
+		APIVersion string `json:"apiVersion" example:"v1" yaml:"apiVersion"`
+		Kind       string `json:"kind" example:"Secret" yaml:"kind"`
+		Name       string `json:"name" example:"registry-1" yaml:"name"`
+		Namespace  string `json:"namespace,omitempty" example:"default" yaml:"namespace,omitempty"`
+	}
+
+	// RestoreSettings contains instructions for restoring environment-level settings
+	RestoreSettings struct {
+		Manifest string `json:"manifest,omitempty"` // Base64-encoded Kubernetes YAML manifest
+	}
+
+	// RestoreSettingsBundle maps restore type to restoration instructions
+	RestoreSettingsBundle map[PolicyType]RestoreSettings
+
+	PolicyID int
+
+	// PolicyType represents the type of policy
+	PolicyType string
+)
+
+type (
 	// EndpointGroupID represents an environment(endpoint) group identifier
 	EndpointGroupID int
 
@@ -544,6 +645,8 @@ type (
 		AllowContainerCapabilitiesForRegularUsers bool `json:"allowContainerCapabilitiesForRegularUsers" example:"true"`
 		// Whether non-administrator should be able to use sysctl settings
 		AllowSysctlSettingForRegularUsers bool `json:"allowSysctlSettingForRegularUsers" example:"true"`
+		// Whether non-administrator should be able to use security-opt settings
+		AllowSecurityOptForRegularUsers bool `json:"allowSecurityOptForRegularUsers" example:"true"`
 		// Whether host management features are enabled
 		EnableHostManagementFeatures bool `json:"enableHostManagementFeatures" example:"true"`
 	}
@@ -575,7 +678,7 @@ type (
 		PriceDescription string                      `json:"PriceDescription,omitempty"`
 		Deal             bool                        `json:"Deal,omitempty"`
 		Available        bool                        `json:"Available,omitempty"`
-		License          ExtensionLicenseInformation `json:"License,omitempty"`
+		License          ExtensionLicenseInformation `json:"License,omitzero"`
 		Version          string                      `json:"Version"`
 		UpdateAvailable  bool                        `json:"UpdateAvailable"`
 		ShopURL          string                      `json:"ShopURL,omitempty"`
@@ -591,6 +694,12 @@ type (
 		ProjectID   int    `json:"ProjectId"`
 		InstanceURL string `json:"InstanceURL"`
 		ProjectPath string `json:"ProjectPath"`
+	}
+
+	// GithubRegistryData represents data required for Github registry to work
+	GithubRegistryData struct {
+		UseOrganisation  bool   `json:"UseOrganisation"`
+		OrganisationName string `json:"OrganisationName"`
 	}
 
 	HelmUserRepositoryID int
@@ -620,15 +729,16 @@ type (
 	JobType int
 
 	K8sNamespaceInfo struct {
-		Id             string                 `json:"Id"`
-		Name           string                 `json:"Name"`
-		Status         corev1.NamespaceStatus `json:"Status"`
-		Annotations    map[string]string      `json:"Annotations"`
-		CreationDate   string                 `json:"CreationDate"`
-		NamespaceOwner string                 `json:"NamespaceOwner"`
-		IsSystem       bool                   `json:"IsSystem"`
-		IsDefault      bool                   `json:"IsDefault"`
-		ResourceQuota  *corev1.ResourceQuota  `json:"ResourceQuota"`
+		Id                  string                 `json:"Id"`
+		Name                string                 `json:"Name"`
+		Status              corev1.NamespaceStatus `json:"Status"`
+		Annotations         map[string]string      `json:"Annotations"`
+		CreationDate        string                 `json:"CreationDate"`
+		UnhealthyEventCount int                    `json:"UnhealthyEventCount"`
+		NamespaceOwner      string                 `json:"NamespaceOwner"`
+		IsSystem            bool                   `json:"IsSystem"`
+		IsDefault           bool                   `json:"IsDefault"`
+		ResourceQuota       *corev1.ResourceQuota  `json:"ResourceQuota"`
 	}
 
 	K8sNodeLimits struct {
@@ -660,12 +770,13 @@ type (
 
 	// KubernetesSnapshot represents a snapshot of a specific Kubernetes environment(endpoint) at a specific time
 	KubernetesSnapshot struct {
-		Time              int64            `json:"Time"`
-		KubernetesVersion string           `json:"KubernetesVersion"`
-		NodeCount         int              `json:"NodeCount"`
-		TotalCPU          int64            `json:"TotalCPU"`
-		TotalMemory       int64            `json:"TotalMemory"`
-		DiagnosticsData   *DiagnosticsData `json:"DiagnosticsData"`
+		Time               int64               `json:"Time"`
+		KubernetesVersion  string              `json:"KubernetesVersion"`
+		NodeCount          int                 `json:"NodeCount"`
+		TotalCPU           int64               `json:"TotalCPU"`
+		TotalMemory        int64               `json:"TotalMemory"`
+		DiagnosticsData    *DiagnosticsData    `json:"DiagnosticsData"`
+		PerformanceMetrics *PerformanceMetrics `json:"PerformanceMetrics"`
 	}
 
 	// KubernetesConfiguration represents the configuration of a Kubernetes environment(endpoint)
@@ -811,6 +922,7 @@ type (
 		Password                string                           `json:"Password,omitempty" example:"registry_password"`
 		ManagementConfiguration *RegistryManagementConfiguration `json:"ManagementConfiguration"`
 		Gitlab                  GitlabRegistryData               `json:"Gitlab"`
+		Github                  GithubRegistryData               `json:"Github"`
 		Quay                    QuayRegistryData                 `json:"Quay"`
 		Ecr                     EcrData                          `json:"Ecr"`
 		RegistryAccesses        RegistryAccesses                 `json:"RegistryAccesses"`
@@ -834,9 +946,11 @@ type (
 	RegistryAccesses map[EndpointID]RegistryAccessPolicies
 
 	RegistryAccessPolicies struct {
+		// Docker specific fields (with docker, users/teams have access to a registry)
 		UserAccessPolicies UserAccessPolicies `json:"UserAccessPolicies"`
 		TeamAccessPolicies TeamAccessPolicies `json:"TeamAccessPolicies"`
-		Namespaces         []string           `json:"Namespaces"`
+		// Kubernetes specific fields (with kubernetes, namespaces have access to a registry, if users/teams have access to the same namespace, they have access to the registry)
+		Namespaces []string `json:"Namespaces"`
 	}
 
 	// RegistryID represents a registry identifier
@@ -996,8 +1110,6 @@ type (
 		UserSessionTimeout string `json:"UserSessionTimeout" example:"5m"`
 		// The expiry of a Kubeconfig
 		KubeconfigExpiry string `json:"KubeconfigExpiry" example:"24h"`
-		// Whether telemetry is enabled
-		EnableTelemetry bool `json:"EnableTelemetry" example:"false"`
 		// Helm repository URL, defaults to "https://charts.bitnami.com/bitnami"
 		HelmRepositoryURL string `json:"HelmRepositoryURL" example:"https://charts.bitnami.com/bitnami"`
 		// KubectlImage, defaults to portainer/kubectl-shell
@@ -1092,6 +1204,8 @@ type (
 	StackOption struct {
 		// Prune services that are no longer referenced
 		Prune bool `example:"false"`
+		// Enable atomic rollback on failure (Helm --atomic flag for Kubernetes Helm stacks)
+		HelmAtomic bool `example:"false"`
 	}
 
 	// StackID represents a stack identifier (it must be composed of Name + "_" + SwarmID to create a unique identifier)
@@ -1519,10 +1633,42 @@ type (
 
 	// GitService represents a service for managing Git
 	GitService interface {
-		CloneRepository(destination string, repositoryURL, referenceName, username, password string, tlsSkipVerify bool) error
-		LatestCommitID(repositoryURL, referenceName, username, password string, tlsSkipVerify bool) (string, error)
-		ListRefs(repositoryURL, username, password string, hardRefresh bool, tlsSkipVerify bool) ([]string, error)
-		ListFiles(repositoryURL, referenceName, username, password string, dirOnly, hardRefresh bool, includeExts []string, tlsSkipVerify bool) ([]string, error)
+		CloneRepository(
+			destination string,
+			repositoryURL,
+			referenceName,
+			username,
+			password string,
+			authType gittypes.GitCredentialAuthType,
+			tlsSkipVerify bool,
+		) error
+		LatestCommitID(
+			repositoryURL,
+			referenceName,
+			username,
+			password string,
+			authType gittypes.GitCredentialAuthType,
+			tlsSkipVerify bool,
+		) (string, error)
+		ListRefs(
+			repositoryURL,
+			username,
+			password string,
+			authType gittypes.GitCredentialAuthType,
+			hardRefresh bool,
+			tlsSkipVerify bool,
+		) ([]string, error)
+		ListFiles(
+			repositoryURL,
+			referenceName,
+			username,
+			password string,
+			authType gittypes.GitCredentialAuthType,
+			dirOnly,
+			hardRefresh bool,
+			includeExts []string,
+			tlsSkipVerify bool,
+		) ([]string, error)
 	}
 
 	// OpenAMTService represents a service for managing OpenAMT
@@ -1688,7 +1834,7 @@ type (
 
 	// OAuthService represents a service used to authenticate users using OAuth
 	OAuthService interface {
-		Authenticate(code string, configuration *OAuthSettings) (string, error)
+		Authenticate(ctx context.Context, code string, configuration *OAuthSettings) (string, error)
 	}
 
 	// ReverseTunnelService represents a service used to manage reverse tunnel connections.
@@ -1728,9 +1874,9 @@ type (
 
 const (
 	// APIVersion is the version number of the Portainer API
-	APIVersion = "2.31.0"
+	APIVersion = "2.39.0"
 	// Support annotation for the API version ("STS" for Short-Term Support or "LTS" for Long-Term Support)
-	APIVersionSupport = "STS"
+	APIVersionSupport = "LTS"
 	// Edition is what this edition of Portainer is called
 	Edition = PortainerCE
 	// ComposeSyntaxMaxVersion is a maximum supported version of the docker compose syntax
@@ -1739,8 +1885,10 @@ const (
 	AssetsServerURL = "https://portainer-io-assets.sfo2.digitaloceanspaces.com"
 	// MessageOfTheDayURL represents the URL where Portainer MOTD message can be retrieved
 	MessageOfTheDayURL = AssetsServerURL + "/motd.json"
+	// ReleasesURL represents the URL used to retrieve all releases of Portainer
+	ReleasesURL = "https://api.github.com/repos/portainer/portainer/releases"
 	// VersionCheckURL represents the URL used to retrieve the latest version of Portainer
-	VersionCheckURL = "https://api.github.com/repos/portainer/portainer/releases/latest"
+	VersionCheckURL = ReleasesURL + "/latest"
 	// PortainerAgentHeader represents the name of the header available in any agent response
 	PortainerAgentHeader = "Portainer-Agent"
 	// PortainerAgentEdgeIDHeader represent the name of the header containing the Edge ID associated to an agent/agent cluster
@@ -1782,11 +1930,19 @@ const (
 	KubectlShellImageEnvVar = "KUBECTL_SHELL_IMAGE"
 	// PullLimitCheckDisabledEnvVar is the environment variable used to disable the pull limit check
 	PullLimitCheckDisabledEnvVar = "PULL_LIMIT_CHECK_DISABLED"
+	// FeatureFlagEnvVar is the environment variable used to set the list of enabled feature flags
+	FeatureFlagEnvVar = "FEATURE_FLAG"
 	// LicenseServerBaseURL represents the base URL of the API used to validate
 	// an extension license.
 	LicenseServerBaseURL = "https://api.portainer.io"
 	// URL to validate licenses along with system metadata.
 	LicenseCheckInURL = LicenseServerBaseURL + "/licenses/checkin"
+	// TrustedOriginsEnvVar is the environment variable used to set the trusted origins for CSRF protection
+	TrustedOriginsEnvVar = "TRUSTED_ORIGINS"
+	// CSPEnvVar is the environment variable used to enable/disable the Content Security Policy
+	CSPEnvVar = "CSP"
+	// CompactDBEnvVar is the environment variable used to enable/disable the startup compaction of the database
+	CompactDBEnvVar = "COMPACT_DB"
 )
 
 // List of supported features
@@ -1956,6 +2112,8 @@ const (
 	DockerHubRegistry
 	// EcrRegistry represents an ECR registry
 	EcrRegistry
+	// Github container registry
+	GithubRegistry
 )
 
 const (
@@ -2291,3 +2449,41 @@ const (
 	ContainerEngineDocker = "docker"
 	ContainerEnginePodman = "podman"
 )
+
+const (
+	// PolicyType constants
+	RbacK8s            PolicyType = "rbac-k8s"
+	SecurityK8s        PolicyType = "security-k8s"
+	SetupK8s           PolicyType = "setup-k8s"
+	RegistryK8s        PolicyType = "registry-k8s"
+	RbacDocker         PolicyType = "rbac-docker"
+	SecurityDocker     PolicyType = "security-docker"
+	SetupDocker        PolicyType = "setup-docker"
+	RegistryDocker     PolicyType = "registry-docker"
+	ChangeConfirmation PolicyType = "change-confirmation"
+)
+
+type HelmInstallStatus string
+
+const (
+	HelmInstallStatusInstalling   HelmInstallStatus = "installing"
+	HelmInstallStatusInstalled    HelmInstallStatus = "installed"
+	HelmInstallStatusFailed       HelmInstallStatus = "failed"
+	HelmInstallStatusUninstalling HelmInstallStatus = "uninstalling"
+)
+
+func DefaultEndpointSecuritySettings() EndpointSecuritySettings {
+	return EndpointSecuritySettings{
+		AllowBindMountsForRegularUsers:            false,
+		AllowContainerCapabilitiesForRegularUsers: false,
+		AllowDeviceMappingForRegularUsers:         false,
+		AllowHostNamespaceForRegularUsers:         false,
+		AllowPrivilegedModeForRegularUsers:        false,
+		AllowSysctlSettingForRegularUsers:         false,
+		AllowSecurityOptForRegularUsers:           false,
+		AllowVolumeBrowserForRegularUsers:         false,
+		EnableHostManagementFeatures:              false,
+
+		AllowStackManagementForRegularUsers: true,
+	}
+}

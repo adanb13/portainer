@@ -1,10 +1,9 @@
-import { useCurrentStateAndParams } from '@uirouter/react';
 import { CalendarCheck2, CalendarSync } from 'lucide-react';
 
 import { useUnauthorizedRedirect } from '@/react/hooks/useUnauthorizedRedirect';
 
 import { PageHeader } from '@@/PageHeader';
-import { WidgetTabs, Tab, findSelectedTabIndex } from '@@/Widget/WidgetTabs';
+import { WidgetTabs, Tab, useCurrentTabIndex } from '@@/Widget/WidgetTabs';
 
 import { JobsDatatable } from './JobsDatatable/JobsDatatable';
 import { CronJobsDatatable } from './CronJobsDatatable/CronJobsDatatable';
@@ -30,15 +29,12 @@ export function JobsView() {
     },
   ];
 
-  const currentTabIndex = findSelectedTabIndex(
-    useCurrentStateAndParams(),
-    tabs
-  );
+  const currentTabIndex = useCurrentTabIndex(tabs);
 
   return (
     <>
       <PageHeader
-        title="Cron Jobs & Jobs lists"
+        title="Cron Job & Job lists"
         breadcrumbs="Cron Jobs & Jobs"
         reload
       />

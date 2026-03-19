@@ -7,6 +7,7 @@ import (
 	"github.com/portainer/portainer/api/database"
 	"github.com/portainer/portainer/api/dataservices"
 	"github.com/portainer/portainer/api/dataservices/errors"
+	"github.com/portainer/portainer/api/slicesx"
 )
 
 var _ dataservices.DataStore = &testDatastore{}
@@ -112,7 +113,7 @@ type datastoreOption = func(d *testDatastore)
 // NewDatastore creates new instance of testDatastore.
 // Will apply options before returning, opts will be applied from left to right.
 func NewDatastore(options ...datastoreOption) *testDatastore {
-	conn, _ := database.NewDatabase("boltdb", "", nil)
+	conn, _ := database.NewDatabase("boltdb", "", nil, false)
 	d := testDatastore{connection: conn}
 
 	for _, o := range options {
@@ -152,8 +153,17 @@ type stubUserService struct {
 	users []portainer.User
 }
 
-func (s *stubUserService) BucketName() string                 { return "users" }
-func (s *stubUserService) ReadAll() ([]portainer.User, error) { return s.users, nil }
+func (s *stubUserService) BucketName() string { return "users" }
+func (s *stubUserService) ReadAll(predicates ...func(portainer.User) bool) ([]portainer.User, error) {
+	filtered := s.users
+
+	for _, p := range predicates {
+		filtered = slicesx.Filter(filtered, p)
+	}
+
+	return filtered, nil
+}
+
 func (s *stubUserService) UsersByRole(role portainer.UserRole) ([]portainer.User, error) {
 	return s.users, nil
 }
@@ -171,8 +181,16 @@ type stubEdgeJobService struct {
 	jobs []portainer.EdgeJob
 }
 
-func (s *stubEdgeJobService) BucketName() string                    { return "edgejobs" }
-func (s *stubEdgeJobService) ReadAll() ([]portainer.EdgeJob, error) { return s.jobs, nil }
+func (s *stubEdgeJobService) BucketName() string { return "edgejobs" }
+func (s *stubEdgeJobService) ReadAll(predicates ...func(portainer.EdgeJob) bool) ([]portainer.EdgeJob, error) {
+	filtered := s.jobs
+
+	for _, p := range predicates {
+		filtered = slicesx.Filter(filtered, p)
+	}
+
+	return filtered, nil
+}
 
 // WithEdgeJobs option will instruct testDatastore to return provided jobs
 func WithEdgeJobs(js []portainer.EdgeJob) datastoreOption {
@@ -212,11 +230,11 @@ func (s *stubEndpointRelationService) UpdateEndpointRelation(ID portainer.Endpoi
 	return nil
 }
 
-func (s *stubEndpointRelationService) AddEndpointRelationsForEdgeStack(endpointIDs []portainer.EndpointID, edgeStackID portainer.EdgeStackID) error {
+func (s *stubEndpointRelationService) AddEndpointRelationsForEdgeStack(endpointIDs []portainer.EndpointID, edgeStack *portainer.EdgeStack) error {
 	for _, endpointID := range endpointIDs {
 		for i, r := range s.relations {
 			if r.EndpointID == endpointID {
-				s.relations[i].EdgeStacks[edgeStackID] = true
+				s.relations[i].EdgeStacks[edgeStack.ID] = true
 			}
 		}
 	}
@@ -244,6 +262,8 @@ func WithEndpointRelations(relations []portainer.EndpointRelation) datastoreOpti
 }
 
 type stubEndpointService struct {
+	dataservices.EndpointService
+
 	endpoints []portainer.Endpoint
 }
 
@@ -362,8 +382,14 @@ func (s *stubStacksService) Read(ID portainer.StackID) (*portainer.Stack, error)
 	return nil, errors.ErrObjectNotFound
 }
 
-func (s *stubStacksService) ReadAll() ([]portainer.Stack, error) {
-	return s.stacks, nil
+func (s *stubStacksService) ReadAll(predicates ...func(portainer.Stack) bool) ([]portainer.Stack, error) {
+	filtered := s.stacks
+
+	for _, p := range predicates {
+		filtered = slicesx.Filter(filtered, p)
+	}
+
+	return filtered, nil
 }
 
 func (s *stubStacksService) StacksByEndpointID(endpointID portainer.EndpointID) ([]portainer.Stack, error) {
@@ -435,4 +461,40 @@ func WithStacks(stacks []portainer.Stack) datastoreOption {
 	return func(d *testDatastore) {
 		d.stack = &stubStacksService{stacks: stacks}
 	}
+}
+
+type stubPendingActionService struct {
+	actions []portainer.PendingAction
+	dataservices.PendingActionsService
+}
+
+func WithPendingActions(pendingActions []portainer.PendingAction) datastoreOption {
+	return func(d *testDatastore) {
+		d.pendingActionsService = &stubPendingActionService{
+			actions: pendingActions,
+		}
+	}
+}
+
+func (s *stubPendingActionService) ReadAll(predicates ...func(portainer.PendingAction) bool) ([]portainer.PendingAction, error) {
+	filtered := s.actions
+
+	for _, predicate := range predicates {
+		filtered = slicesx.Filter(filtered, predicate)
+	}
+
+	return filtered, nil
+}
+
+func (s *stubPendingActionService) Delete(ID portainer.PendingActionID) error {
+	actions := []portainer.PendingAction{}
+
+	for _, action := range s.actions {
+		if action.ID != ID {
+			actions = append(actions, action)
+		}
+	}
+	s.actions = actions
+
+	return nil
 }

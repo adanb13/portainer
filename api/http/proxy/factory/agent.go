@@ -43,7 +43,7 @@ func (factory *ProxyFactory) NewAgentProxy(endpoint *portainer.Endpoint) (*Proxy
 	httpTransport := &http.Transport{}
 
 	if endpoint.TLSConfig.TLS || endpoint.TLSConfig.TLSSkipVerify {
-		config, err := crypto.CreateTLSConfigurationFromDisk(endpoint.TLSConfig.TLSCACertPath, endpoint.TLSConfig.TLSCertPath, endpoint.TLSConfig.TLSKeyPath, endpoint.TLSConfig.TLSSkipVerify)
+		config, err := crypto.CreateTLSConfigurationFromDisk(endpoint.TLSConfig)
 		if err != nil {
 			return nil, errors.WithMessage(err, "failed generating tls configuration")
 		}
@@ -96,6 +96,8 @@ func (proxy *ProxyServer) start() error {
 // Close shuts down the server
 func (proxy *ProxyServer) Close() {
 	if proxy.server != nil {
-		proxy.server.Close()
+		if err := proxy.server.Close(); err != nil {
+			log.Warn().Err(err).Msg("failed to close proxy server")
+		}
 	}
 }

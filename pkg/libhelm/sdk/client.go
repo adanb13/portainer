@@ -4,9 +4,9 @@ import (
 	"github.com/pkg/errors"
 	"github.com/portainer/portainer/pkg/libhelm/options"
 	"github.com/rs/zerolog/log"
-	"helm.sh/helm/v3/pkg/action"
-	"helm.sh/helm/v3/pkg/chartutil"
-	"helm.sh/helm/v3/pkg/cli"
+	slogzerolog "github.com/samber/slog-zerolog/v2"
+	"helm.sh/helm/v4/pkg/action"
+	"helm.sh/helm/v4/pkg/cli"
 	"k8s.io/apimachinery/pkg/api/meta"
 	"k8s.io/client-go/discovery"
 	"k8s.io/client-go/discovery/cached/memory"
@@ -29,11 +29,18 @@ func (hspm *HelmSDKPackageManager) initActionConfig(actionConfig *action.Configu
 		namespace = "default"
 	}
 
+	// Setup logging for Helm SDK using zerolog
+	logger := log.With().Str("context", "HelmClient").Logger()
+	logOptions := slogzerolog.Option{
+		Logger: &(logger),
+	}
+	actionConfig.SetLogger(logOptions.NewZerologHandler())
+
 	if k8sAccess == nil {
 		// Use default kubeconfig
 		settings := cli.New()
 		clientGetter := settings.RESTClientGetter()
-		return actionConfig.Init(clientGetter, namespace, "secret", hspm.logf)
+		return actionConfig.Init(clientGetter, namespace, "secret")
 	}
 
 	// Create client config
@@ -53,7 +60,7 @@ func (hspm *HelmSDKPackageManager) initActionConfig(actionConfig *action.Configu
 		return err
 	}
 
-	return actionConfig.Init(clientGetter, namespace, "secret", hspm.logf)
+	return actionConfig.Init(clientGetter, namespace, "secret")
 }
 
 // generateConfigAPI generates a new kubeconfig configuration
@@ -147,19 +154,4 @@ func (c *clientConfigGetter) ToRESTMapper() (meta.RESTMapper, error) {
 
 func (c *clientConfigGetter) ToRawKubeConfigLoader() clientcmd.ClientConfig {
 	return c.clientConfig
-}
-
-// parseValues parses YAML values data into a map
-func (hspm *HelmSDKPackageManager) parseValues(data []byte) (map[string]any, error) {
-	// Use Helm's built-in chartutil.ReadValues which properly handles the conversion
-	// from map[interface{}]interface{} to map[string]interface{}
-	return chartutil.ReadValues(data)
-}
-
-// logf is a log helper function for Helm
-func (hspm *HelmSDKPackageManager) logf(format string, v ...any) {
-	// Use zerolog for structured logging
-	log.Debug().
-		Str("context", "HelmClient").
-		Msgf(format, v...)
 }

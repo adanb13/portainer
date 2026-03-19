@@ -1,4 +1,4 @@
-import axios, { parseAxiosError } from '@/portainer/services/axios';
+import axios, { parseAxiosError } from '@/portainer/services/axios/axios';
 
 import { buildUrl } from '../environment.service/utils';
 import { EnvironmentId } from '../types';
@@ -14,17 +14,28 @@ export function useEnvironmentRegistries<T = Array<Registry>>(
   environmentId: EnvironmentId,
   queryOptions: GenericRegistriesQueryOptions<T> = {}
 ) {
+  const { namespace } = queryOptions;
   return useGenericRegistriesQuery(
-    environmentQueryKeys.registries(environmentId),
-    () => getEnvironmentRegistries(environmentId),
+    environmentQueryKeys.registries(environmentId, namespace),
+    () => getEnvironmentRegistries(environmentId, { namespace }),
     queryOptions
   );
 }
 
-async function getEnvironmentRegistries(environmentId: EnvironmentId) {
+type Params = {
+  namespace?: string;
+};
+
+async function getEnvironmentRegistries(
+  environmentId: EnvironmentId,
+  params: Params
+) {
   try {
     const { data } = await axios.get<Array<Registry>>(
-      buildUrl(environmentId, 'registries')
+      buildUrl(environmentId, 'registries'),
+      {
+        params,
+      }
     );
     return data;
   } catch (err) {

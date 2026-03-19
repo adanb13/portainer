@@ -1,5 +1,5 @@
 import { EnvironmentId } from '@/react/portainer/environments/types';
-import axios, { parseAxiosError } from '@/portainer/services/axios';
+import axios, { parseAxiosError } from '@/portainer/services/axios/axios';
 
 import { buildContainerGroupUrl } from '../queries/utils';
 import { ContainerGroup, ContainerInstanceFormValues } from '../types';
@@ -41,7 +41,7 @@ export async function deleteContainerGroup(
   }
 }
 
-function transformToPayload(model: ContainerInstanceFormValues) {
+export function transformToPayload(model: ContainerInstanceFormValues) {
   const containerPorts = [];
   const addressPorts = [];
 
@@ -60,6 +60,11 @@ function transformToPayload(model: ContainerInstanceFormValues) {
     });
   }
 
+  const environmentVariables = model.env.map(({ name, value }) => ({
+    name,
+    value,
+  }));
+
   return {
     location: model.location,
     properties: {
@@ -70,6 +75,7 @@ function transformToPayload(model: ContainerInstanceFormValues) {
           properties: {
             image: model.image,
             ports: containerPorts,
+            environmentVariables,
             resources: {
               requests: {
                 cpu: model.cpu,

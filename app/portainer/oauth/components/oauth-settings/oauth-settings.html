@@ -29,12 +29,11 @@
   </div>
   <!-- !HideInternalAuth -->
 
-  <auto-user-provision-toggle ng-model="$ctrl.settings.OAuthAutoCreateUsers">
-    <field-description>
-      With automatic user provisioning enabled, Portainer will create user(s) automatically with the standard user role. If disabled, users must be created beforehand in Portainer
-      in order to login.
-    </field-description>
-  </auto-user-provision-toggle>
+  <auto-user-provision-toggle
+    value="$ctrl.settings.OAuthAutoCreateUsers"
+    on-change="($ctrl.onAutoUserProvisionChange)"
+    description="'With automatic user provisioning enabled, Portainer will create user(s) automatically with the standard user role. If disabled, users must be created beforehand in Portainer in order to login.'"
+  ></auto-user-provision-toggle>
 
   <div ng-if="$ctrl.settings.OAuthAutoCreateUsers">
     <div class="form-group">
@@ -101,7 +100,7 @@
 
   <div ng-if="$ctrl.settings.OAuthAutoMapTeamMemberships">
     <div class="form-group">
-      <label class="col-sm-3 col-lg-2 control-label text-left">
+      <label class="col-sm-3 col-lg-2 control-label text-left" for="oauth_token_claim_name">
         Claim name
         <portainer-tooltip message="'The OpenID Connect UserInfo Claim name that contains the team identifier the user belongs to.'"></portainer-tooltip>
       </label>

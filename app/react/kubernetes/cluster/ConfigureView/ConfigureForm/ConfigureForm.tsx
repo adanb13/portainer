@@ -9,16 +9,13 @@ import {
   Environment,
   EnvironmentId,
 } from '@/react/portainer/environments/types';
-import { useAnalytics } from '@/react/hooks/useAnalytics';
 import { FeatureId } from '@/react/portainer/feature-flags/enums';
 
 import { FormSection } from '@@/form-components/FormSection';
 import { TextTip } from '@@/Tip/TextTip';
 import { SwitchField } from '@@/form-components/SwitchField';
 import { FormActions } from '@@/form-components/FormActions';
-import { confirm } from '@@/modals/confirm';
-import { ModalType } from '@@/modals';
-import { buildConfirmButton } from '@@/modals/utils';
+import { confirmGenericDiscard } from '@@/modals/confirm';
 import { InsightsBox } from '@@/InsightsBox';
 
 import { useIngressControllerClassMapQuery } from '../../ingressClass/useIngressControllerClassMap';
@@ -36,7 +33,6 @@ import { useConfigureClusterMutation } from './useConfigureClusterMutation';
 import { handleSubmitConfigureCluster } from './handleSubmitConfigureCluster';
 
 export function ConfigureForm() {
-  const { trackEvent } = useAnalytics();
   const configureClusterMutation = useConfigureClusterMutation();
   // get the initial values
   const { data: environment } = useCurrentEnvironment();
@@ -68,7 +64,6 @@ export function ConfigureForm() {
           initialValues,
           configureClusterMutation,
           formikHelpers,
-          trackEvent,
           environment
         );
       }}
@@ -115,13 +110,7 @@ function InnerForm({
     if (!isFormChanged(values, initialValues)) {
       return true;
     }
-    const confirmed = await confirm({
-      modalType: ModalType.Warn,
-      title: 'Are you sure?',
-      message:
-        'You currently have unsaved changes in the cluster setup view. Are you sure you want to leave?',
-      confirmButton: buildConfirmButton('Yes', 'danger'),
-    });
+    const confirmed = await confirmGenericDiscard();
     return confirmed;
   });
 

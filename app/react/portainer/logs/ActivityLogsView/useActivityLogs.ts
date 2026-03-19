@@ -1,6 +1,6 @@
 import { useQuery } from '@tanstack/react-query';
 
-import axios, { parseAxiosError } from '@/portainer/services/axios';
+import axios, { parseAxiosError } from '@/portainer/services/axios/axios';
 
 import { isBE } from '../../feature-flags/feature-flags.service';
 
@@ -20,7 +20,7 @@ export interface Query {
   limit: number;
   sortBy?: SortKey;
   sortDesc?: boolean;
-  search: string;
+  keyword: string;
   after?: number;
   before?: number;
 }

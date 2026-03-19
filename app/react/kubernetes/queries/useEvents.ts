@@ -2,7 +2,7 @@ import { useQuery } from '@tanstack/react-query';
 
 import { Event } from '@/react/kubernetes/queries/types';
 import { EnvironmentId } from '@/react/portainer/environments/types';
-import axios from '@/portainer/services/axios';
+import axios from '@/portainer/services/axios/axios';
 import { withGlobalError } from '@/react-tools/react-query';
 
 import { parseKubernetesAxiosError } from '../axiosError';
@@ -57,6 +57,7 @@ type QueryOptions<T> = {
   queryOptions?: {
     autoRefreshRate?: number;
     select?: (data: Event[]) => T;
+    enabled?: boolean;
   };
 } & RequestOptions;
 
@@ -80,10 +81,12 @@ export function useEvents<T = Event[]>(
 
 export function useEventWarningsCount(
   environmentId: EnvironmentId,
-  namespace?: string
+  options?: QueryOptions<number>
 ) {
+  const { namespace, params } = options ?? {};
   const resourceEventsQuery = useEvents<number>(environmentId, {
     namespace,
+    params,
     queryOptions: {
       select: (data) => data.filter((e) => e.type === 'Warning').length,
     },

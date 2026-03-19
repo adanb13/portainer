@@ -2,9 +2,10 @@ import { AlertTriangle, Code, History, Minimize2 } from 'lucide-react';
 import { useCurrentStateAndParams } from '@uirouter/react';
 
 import LaptopCode from '@/assets/ico/laptop-code.svg?c';
+import { useNamespaceAccessRedirect } from '@/react/kubernetes/namespaces/hooks/useNamespaceAccessRedirect';
 
 import { PageHeader } from '@@/PageHeader';
-import { Tab, WidgetTabs, findSelectedTabIndex } from '@@/Widget/WidgetTabs';
+import { Tab, WidgetTabs, useCurrentTabIndex } from '@@/Widget/WidgetTabs';
 import { Icon } from '@@/Icon';
 import { Badge } from '@@/Badge';
 
@@ -30,6 +31,7 @@ export function ApplicationDetailsView() {
   const {
     params: { namespace, name },
   } = stateAndParams;
+  useNamespaceAccessRedirect(namespace, { to: 'kubernetes.applications' });
 
   // placements table data
   const { placementsData, isPlacementsTableLoading, hasPlacementWarning } =
@@ -103,7 +105,7 @@ export function ApplicationDetailsView() {
       selectedTabParam: 'YAML',
     },
   ];
-  const currentTabIndex = findSelectedTabIndex(stateAndParams, tabs);
+  const currentTabIndex = useCurrentTabIndex(tabs);
 
   return (
     <>

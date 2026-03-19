@@ -11,7 +11,7 @@ import { baseStackWebhookUrl, createWebhookId } from '@/portainer/helpers/webhoo
 import { getVariablesFieldDefaultValues } from '@/react/portainer/custom-templates/components/CustomTemplatesVariablesField';
 import { KUBE_STACK_NAME_VALIDATION_REGEX } from '@/react/kubernetes/DeployView/StackName/constants';
 import { confirmWebEditorDiscard } from '@@/modals/confirm';
-import { editor, git, customTemplate, url, helm } from '@@/BoxSelector/common-options/build-methods';
+import { editor, git, customTemplate, url } from '@@/BoxSelector/common-options/build-methods';
 import { kubernetes } from '@@/BoxSelector/common-options/deployment-methods';
 
 class KubernetesDeployController {
@@ -37,7 +37,6 @@ class KubernetesDeployController {
       { ...editor, value: KubernetesDeployBuildMethods.WEB_EDITOR },
       { ...url, value: KubernetesDeployBuildMethods.URL },
       { ...customTemplate, value: KubernetesDeployBuildMethods.CUSTOM_TEMPLATE },
-      { ...helm, value: KubernetesDeployBuildMethods.HELM },
     ];
 
     let buildMethod = Number(this.$state.params.buildMethod) || KubernetesDeployBuildMethods.GIT;
@@ -101,9 +100,10 @@ class KubernetesDeployController {
     this.onChangeNamespace = this.onChangeNamespace.bind(this);
   }
 
-  onChangeNamespace() {
+  onChangeNamespace(namespaceName) {
     return this.$async(async () => {
-      const applications = await this.KubernetesApplicationService.get(this.formValues.Namespace);
+      this.formValues.Namespace = namespaceName;
+      const applications = await this.KubernetesApplicationService.get(namespaceName);
       const stacks = _.map(applications, (item) => item.StackName).filter((item) => item !== '');
       this.stacks = _.uniq(stacks);
     });
@@ -371,6 +371,10 @@ class KubernetesDeployController {
       if (this.namespaces.length > 0) {
         this.formValues.Namespace = this.namespaces[0].Name;
       }
+      this.namespaceOptions = _.map(namespaces, (namespace) => ({
+        label: namespace.Name,
+        value: namespace.Name,
+      }));
     } catch (err) {
       this.Notifications.error('Failure', err, 'Unable to load namespaces data');
     }
@@ -404,7 +408,8 @@ class KubernetesDeployController {
         }
       }
 
-      this.onChangeNamespace();
+      this.onChangeNamespace(this.formValues.Namespace);
+
       this.state.viewReady = true;
 
       this.$window.onbeforeunload = () => {

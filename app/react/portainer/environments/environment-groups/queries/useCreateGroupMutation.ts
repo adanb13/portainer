@@ -1,6 +1,6 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 
-import axios, { parseAxiosError } from '@/portainer/services/axios';
+import axios, { parseAxiosError } from '@/portainer/services/axios/axios';
 import { TagId } from '@/portainer/tags/types';
 import {
   mutationOptions,
@@ -17,16 +17,23 @@ import { queryKeys } from './query-keys';
 interface CreateGroupPayload {
   name: string;
   description?: string;
-  associatedEndpoints?: EnvironmentId[];
+  associatedEnvironments?: EnvironmentId[];
   tagIds?: TagId[];
 }
 
-export async function createGroup(requestPayload: CreateGroupPayload) {
+export async function createGroup({
+  name,
+  description,
+  associatedEnvironments,
+  tagIds,
+}: CreateGroupPayload) {
   try {
-    const { data: group } = await axios.post<EnvironmentGroup>(
-      buildUrl(),
-      requestPayload
-    );
+    const { data: group } = await axios.post<EnvironmentGroup>(buildUrl(), {
+      Name: name,
+      Description: description,
+      AssociatedEndpoints: associatedEnvironments,
+      TagIDs: tagIds,
+    });
     return group;
   } catch (e) {
     throw parseAxiosError(e as Error, 'Failed to create group');

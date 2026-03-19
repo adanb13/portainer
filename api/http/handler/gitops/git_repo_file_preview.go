@@ -10,6 +10,7 @@ import (
 	"github.com/portainer/portainer/pkg/libhttp/request"
 	"github.com/portainer/portainer/pkg/libhttp/response"
 	"github.com/portainer/portainer/pkg/validate"
+	"github.com/rs/zerolog/log"
 )
 
 type fileResponse struct {
@@ -17,10 +18,11 @@ type fileResponse struct {
 }
 
 type repositoryFilePreviewPayload struct {
-	Repository string `json:"repository" example:"https://github.com/openfaas/faas" validate:"required"`
-	Reference  string `json:"reference" example:"refs/heads/master"`
-	Username   string `json:"username" example:"myGitUsername"`
-	Password   string `json:"password" example:"myGitPassword"`
+	Repository        string                         `json:"repository" example:"https://github.com/openfaas/faas" validate:"required"`
+	Reference         string                         `json:"reference" example:"refs/heads/master"`
+	Username          string                         `json:"username" example:"myGitUsername"`
+	Password          string                         `json:"password" example:"myGitPassword"`
+	AuthorizationType gittypes.GitCredentialAuthType `json:"authorizationType"`
 	// Path to file whose content will be read
 	TargetFile string `json:"targetFile" example:"docker-compose.yml"`
 	// TLSSkipVerify skips SSL verification when cloning the Git repository
@@ -68,7 +70,15 @@ func (handler *Handler) gitOperationRepoFilePreview(w http.ResponseWriter, r *ht
 		return httperror.InternalServerError("Unable to create temporary folder", err)
 	}
 
-	err = handler.gitService.CloneRepository(projectPath, payload.Repository, payload.Reference, payload.Username, payload.Password, payload.TLSSkipVerify)
+	err = handler.gitService.CloneRepository(
+		projectPath,
+		payload.Repository,
+		payload.Reference,
+		payload.Username,
+		payload.Password,
+		payload.AuthorizationType,
+		payload.TLSSkipVerify,
+	)
 	if err != nil {
 		if errors.Is(err, gittypes.ErrAuthenticationFailure) {
 			return httperror.BadRequest("Invalid git credential", err)
@@ -78,7 +88,11 @@ func (handler *Handler) gitOperationRepoFilePreview(w http.ResponseWriter, r *ht
 		return httperror.InternalServerError(newErr.Error(), newErr)
 	}
 
-	defer handler.fileService.RemoveDirectory(projectPath)
+	defer func() {
+		if err := handler.fileService.RemoveDirectory(projectPath); err != nil {
+			log.Warn().Err(err).Msg("failed to remove temporary project folder")
+		}
+	}()
 
 	fileContent, err := handler.fileService.GetFileContent(projectPath, payload.TargetFile)
 	if err != nil {

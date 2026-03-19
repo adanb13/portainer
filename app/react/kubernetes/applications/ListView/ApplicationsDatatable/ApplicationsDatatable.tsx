@@ -20,7 +20,11 @@ import { AddButton } from '@@/buttons';
 import { ExpandableDatatable } from '@@/datatables/ExpandableDatatable';
 
 import { NamespaceFilter } from '../ApplicationsStacksDatatable/NamespaceFilter';
-import { PodKubernetesInstanceLabel, PodManagedByLabel } from '../../constants';
+import {
+  HelmReleaseNameAnnotation,
+  PodKubernetesInstanceLabel,
+  PodManagedByLabel,
+} from '../../constants';
 import { useApplications } from '../../queries/useApplications';
 import { ApplicationsTableSettings } from '../useKubeAppsTableStore';
 import { useDeleteApplicationsMutation } from '../../queries/useDeleteApplicationsMutation';
@@ -164,20 +168,29 @@ function separateHelmApps(applications: Application[]): ApplicationRowData[] {
     applications,
     (app) =>
       app.Metadata?.labels &&
-      app.Metadata.labels[PodKubernetesInstanceLabel] &&
+      (app.Metadata.annotations?.[HelmReleaseNameAnnotation] ||
+        app.Metadata.labels[PodKubernetesInstanceLabel]) &&
       app.Metadata.labels[PodManagedByLabel] === 'Helm'
   );
 
   const groupedHelmApps: Record<string, Application[]> = groupBy(
     helmApps,
-    (app) => app.Metadata?.labels[PodKubernetesInstanceLabel] ?? ''
+    (app) =>
+      `${app.ResourcePool}/${
+        // Prioritize the official Helm annotation over the instance label
+        // meta.helm.sh/release-name is the authoritative source for Helm release names
+        app.Metadata?.annotations?.[HelmReleaseNameAnnotation] ??
+        app.Metadata?.labels[PodKubernetesInstanceLabel] ??
+        ''
+      }`
   );
 
   // build the helm apps row data from the grouped helm apps
   const helmAppsRowData = Object.entries(groupedHelmApps).reduce<
     ApplicationRowData[]
-  >((helmApps, [appName, apps]) => {
-    const helmApp = buildHelmAppRowData(appName, apps);
+  >((helmApps, [groupKey, apps]) => {
+    const instanceLabel = groupKey.split('/')[1];
+    const helmApp = buildHelmAppRowData(instanceLabel, apps);
     return [...helmApps, helmApp];
   }, []);
 

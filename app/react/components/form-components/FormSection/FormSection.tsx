@@ -5,6 +5,7 @@ import { CollapseExpandButton } from '@@/CollapseExpandButton';
 import { FormSectionTitle } from '../FormSectionTitle';
 
 interface Props {
+  id?: string;
   title: ReactNode;
   titleSize?: 'sm' | 'md' | 'lg';
   isFoldable?: boolean;
@@ -12,9 +13,13 @@ interface Props {
   titleClassName?: string;
   className?: string;
   htmlFor?: string;
+  setIsDefaultFolded?: (isDefaultFolded: boolean) => void;
 }
 
+let componentIndex = 0;
+
 export function FormSection({
+  id,
   title,
   titleSize = 'md',
   children,
@@ -23,23 +28,33 @@ export function FormSection({
   titleClassName,
   className,
   htmlFor = '',
+  setIsDefaultFolded,
 }: PropsWithChildren<Props>) {
+  const [labelId] = useState(
+    () => `form-section-label-${componentIndex++}` as const
+  );
   const [isExpanded, setIsExpanded] = useState(!defaultFolded);
-  const id = `foldingButton${title}`;
+
+  const collapsibleIdSuffix = typeof title === 'string' ? title : id || labelId;
+  const collapsibleId = `foldingButton${collapsibleIdSuffix}`;
 
   return (
-    <div className={className}>
+    <section className={className} id={id} aria-labelledby={labelId}>
       <FormSectionTitle
-        htmlFor={isFoldable ? id : htmlFor}
+        htmlFor={isFoldable ? collapsibleId : htmlFor}
         titleSize={titleSize}
         className={titleClassName}
+        id={labelId}
       >
         {isFoldable && (
           <CollapseExpandButton
             isExpanded={isExpanded}
-            data-cy={id}
-            id={id}
-            onClick={() => setIsExpanded((isExpanded) => !isExpanded)}
+            data-cy={collapsibleId}
+            id={collapsibleId}
+            onClick={() => {
+              setIsExpanded((isExpanded) => !isExpanded);
+              setIsDefaultFolded?.(isExpanded);
+            }}
           />
         )}
 
@@ -47,7 +62,7 @@ export function FormSection({
       </FormSectionTitle>
       {/* col-sm-12 in the title has a 'float: left' style - 'clear-both' makes sure it doesn't get in the way of the next div */}
       {/* https://stackoverflow.com/questions/7759837/put-divs-below-floatleft-divs */}
-      {isExpanded && <div className="clear-both">{children}</div>}
-    </div>
+      <div className="clear-both">{isExpanded && children}</div>
+    </section>
   );
 }

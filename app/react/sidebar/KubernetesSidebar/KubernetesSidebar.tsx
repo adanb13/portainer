@@ -17,7 +17,7 @@ import { SidebarItem } from '../SidebarItem';
 import { VolumesLink } from '../items/VolumesLink';
 import { SidebarParent } from '../SidebarItem/SidebarParent';
 
-import { KubectlShellButton } from './KubectlShell';
+import { KubectlShellButton } from './KubectlShellButton';
 
 interface Props {
   environmentId: EnvironmentId;
@@ -105,6 +105,7 @@ export function KubernetesSidebar({ environmentId }: Props) {
         to="kubernetes.moreResources.jobs"
         pathOptions={{
           includePaths: [
+            'kubernetes.moreResources.jobs',
             'kubernetes.moreResources.serviceAccounts',
             'kubernetes.moreResources.clusterRoles',
             'kubernetes.moreResources.roles',

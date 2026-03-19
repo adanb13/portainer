@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	portainer "github.com/portainer/portainer/api"
+	"github.com/portainer/portainer/api/docker/consts"
 	"github.com/portainer/portainer/api/http/proxy/factory/utils"
 	"github.com/portainer/portainer/api/http/security"
 	"github.com/portainer/portainer/api/internal/authorization"
@@ -24,6 +25,7 @@ var (
 	ErrPIDHostNamespaceForbidden      = errors.New("forbidden to use pid host namespace")
 	ErrDeviceMappingForbidden         = errors.New("forbidden to use device mapping")
 	ErrSysCtlSettingsForbidden        = errors.New("forbidden to use sysctl settings")
+	ErrSecurityOptSettingsForbidden   = errors.New("forbidden to use security-opt settings")
 	ErrContainerCapabilitiesForbidden = errors.New("forbidden to use container capabilities")
 	ErrBindMountsForbidden            = errors.New("forbidden to use bind mounts")
 )
@@ -34,7 +36,7 @@ func getInheritedResourceControlFromContainerLabels(dockerClient *client.Client,
 		return nil, err
 	}
 
-	serviceName := container.Config.Labels[resourceLabelForDockerServiceID]
+	serviceName := container.Config.Labels[consts.SwarmServiceIDLabel]
 	if serviceName != "" {
 		serviceResourceControl := authorization.GetResourceControlByResourceIDAndType(serviceName, portainer.ServiceResourceControl, resourceControls)
 		if serviceResourceControl != nil {
@@ -89,7 +91,7 @@ func (transport *Transport) containerListOperation(response *http.Response, exec
 // containerInspectOperation extracts the response as a JSON object, verify that the user
 // has access to the container based on resource control and either rewrite an access denied response or a decorated container.
 func (transport *Transport) containerInspectOperation(response *http.Response, executor *operationExecutor) error {
-	//ContainerInspect response is a JSON object
+	// ContainerInspect response is a JSON object
 	// https://docs.docker.com/engine/api/v1.28/#operation/ContainerInspect
 	responseObject, err := utils.GetResponseAsJSONObject(response)
 	if err != nil {
@@ -115,6 +117,7 @@ func selectorContainerLabelsFromContainerInspectOperation(responseObject map[str
 	containerConfigObject := utils.GetJSONObject(responseObject, "Config")
 	if containerConfigObject != nil {
 		containerLabelsObject := utils.GetJSONObject(containerConfigObject, "Labels")
+
 		return containerLabelsObject
 	}
 
@@ -169,13 +172,14 @@ func containerHasBlackListedLabel(containerLabels map[string]any, labelBlackList
 func (transport *Transport) decorateContainerCreationOperation(request *http.Request, resourceIdentifierAttribute string, resourceType portainer.ResourceControlType) (*http.Response, error) {
 	type PartialContainer struct {
 		HostConfig struct {
-			Privileged bool           `json:"Privileged"`
-			PidMode    string         `json:"PidMode"`
-			Devices    []any          `json:"Devices"`
-			Sysctls    map[string]any `json:"Sysctls"`
-			CapAdd     []string       `json:"CapAdd"`
-			CapDrop    []string       `json:"CapDrop"`
-			Binds      []string       `json:"Binds"`
+			Privileged  bool           `json:"Privileged"`
+			PidMode     string         `json:"PidMode"`
+			Devices     []any          `json:"Devices"`
+			Sysctls     map[string]any `json:"Sysctls"`
+			SecurityOpt []string       `json:"SecurityOpt"`
+			CapAdd      []string       `json:"CapAdd"`
+			CapDrop     []string       `json:"CapDrop"`
+			Binds       []string       `json:"Binds"`
 		} `json:"HostConfig"`
 	}
 
@@ -223,6 +227,10 @@ func (transport *Transport) decorateContainerCreationOperation(request *http.Req
 
 		if !securitySettings.AllowSysctlSettingForRegularUsers && len(partialContainer.HostConfig.Sysctls) > 0 {
 			return forbiddenResponse, ErrSysCtlSettingsForbidden
+		}
+
+		if !securitySettings.AllowSecurityOptForRegularUsers && len(partialContainer.HostConfig.SecurityOpt) > 0 {
+			return forbiddenResponse, ErrSecurityOptSettingsForbidden
 		}
 
 		if !securitySettings.AllowContainerCapabilitiesForRegularUsers && (len(partialContainer.HostConfig.CapAdd) > 0 || len(partialContainer.HostConfig.CapDrop) > 0) {

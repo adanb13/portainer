@@ -14,7 +14,9 @@ func (tx *StoreTx) IsErrObjectNotFound(err error) bool {
 	return tx.store.IsErrObjectNotFound(err)
 }
 
-func (tx *StoreTx) CustomTemplate() dataservices.CustomTemplateService { return nil }
+func (tx *StoreTx) CustomTemplate() dataservices.CustomTemplateService {
+	return tx.store.CustomTemplateService.Tx(tx.tx)
+}
 
 func (tx *StoreTx) PendingActions() dataservices.PendingActionsService {
 	return tx.store.PendingActionsService.Tx(tx.tx)
@@ -72,7 +74,9 @@ func (tx *StoreTx) Snapshot() dataservices.SnapshotService {
 	return tx.store.SnapshotService.Tx(tx.tx)
 }
 
-func (tx *StoreTx) SSLSettings() dataservices.SSLSettingsService { return nil }
+func (tx *StoreTx) SSLSettings() dataservices.SSLSettingsService {
+	return tx.store.SSLSettingsService.Tx(tx.tx)
+}
 
 func (tx *StoreTx) Stack() dataservices.StackService {
 	return tx.store.StackService.Tx(tx.tx)

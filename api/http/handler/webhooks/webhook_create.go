@@ -11,7 +11,7 @@ import (
 	"github.com/portainer/portainer/pkg/libhttp/request"
 	"github.com/portainer/portainer/pkg/libhttp/response"
 
-	"github.com/gofrs/uuid"
+	"github.com/google/uuid"
 )
 
 type webhookCreatePayload struct {
@@ -80,13 +80,13 @@ func (handler *Handler) webhookCreate(w http.ResponseWriter, r *http.Request) *h
 			return httperror.InternalServerError("Unable to retrieve user authentication token", err)
 		}
 
-		_, err = access.GetAccessibleRegistry(handler.DataStore, tokenData.ID, endpointID, payload.RegistryID)
+		_, err = access.GetAccessibleRegistry(handler.DataStore, nil, tokenData.ID, endpointID, payload.RegistryID)
 		if err != nil {
 			return httperror.Forbidden("Permission deny to access registry", err)
 		}
 	}
 
-	token, err := uuid.NewV4()
+	token, err := uuid.NewRandom()
 	if err != nil {
 		return httperror.InternalServerError("Error creating unique token", err)
 	}

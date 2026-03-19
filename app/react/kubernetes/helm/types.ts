@@ -44,6 +44,8 @@ export interface HelmRelease {
   version?: number;
   /** Kubernetes namespace of the release */
   namespace?: string;
+  /** Labels that identify the source of the chart (repo, path, etc.) */
+  chartReference?: ChartReference;
   /** Values of the release */
   values?: Values;
 }
@@ -76,6 +78,15 @@ export interface HelmChart {
   files?: unknown[];
 }
 
+export interface ChartReference {
+  /** Local or packaged chart path used during install/upgrade */
+  chartPath?: string;
+  /** Helm repository URL if the chart came from a repo (CE only) */
+  repoURL?: string;
+  /** Registry identifier if coming from an OCI registry */
+  registryID?: number;
+}
+
 export interface Chart extends HelmChartResponse {
   repo: string;
 }
@@ -91,7 +102,7 @@ export interface HelmChartResponse {
   versions: string[];
 }
 
-export interface HelmRepositoryResponse {
+export interface HelmRegistryResponse {
   Id: number;
   UserId: number;
   URL: string;
@@ -99,7 +110,7 @@ export interface HelmRepositoryResponse {
 
 export interface HelmRegistriesResponse {
   GlobalRepository: string;
-  UserRepositories: HelmRepositoryResponse[];
+  UserRepositories: HelmRegistryResponse[];
 }
 
 export interface HelmChartsResponse {
@@ -108,21 +119,13 @@ export interface HelmChartsResponse {
   generated: string;
 }
 
-export interface InstallChartPayload {
-  Name: string;
-  Repo: string;
-  Chart: string;
-  Values: string;
-  Namespace: string;
-  Version?: string;
-}
-
 export interface UpdateHelmReleasePayload {
   namespace: string;
   values?: string;
-  repo?: string;
+  repo: string;
   name: string;
   chart: string;
+  appVersion?: string;
   version?: string;
   atomic?: boolean;
 }

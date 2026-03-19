@@ -1,6 +1,6 @@
 import { useQuery } from '@tanstack/react-query';
 
-import axios, { parseAxiosError } from '@/portainer/services/axios';
+import axios, { parseAxiosError } from '@/portainer/services/axios/axios';
 
 import { buildUrl } from './build-url';
 import { queryKeys } from './query-keys';
@@ -19,7 +19,7 @@ export interface VersionResponse {
     BuildNumber: string;
     ImageTag: string;
     NodejsVersion: string;
-    YarnVersion: string;
+    PnpmVersion: string;
     WebpackVersion: string;
     GoVersion: string;
     GitCommit: string;

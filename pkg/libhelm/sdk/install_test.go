@@ -6,12 +6,13 @@ import (
 
 	"github.com/portainer/portainer/pkg/libhelm/options"
 	"github.com/portainer/portainer/pkg/libhelm/test"
-	"github.com/stretchr/testify/assert"
+
+	"github.com/stretchr/testify/require"
 )
 
 func Test_Install(t *testing.T) {
 	test.EnsureIntegrationTest(t)
-	is := assert.New(t)
+	is := require.New(t)
 
 	// Create a new SDK package manager
 	hspm := NewHelmSDKPackageManager()
@@ -24,19 +25,17 @@ func Test_Install(t *testing.T) {
 			Repo:  "https://kubernetes.github.io/ingress-nginx",
 		}
 
-		hspm.Uninstall(options.UninstallOptions{
-			Name: installOpts.Name,
-		})
+		err := hspm.Uninstall(options.UninstallOptions{Name: installOpts.Name})
+		require.NoError(t, err)
 
 		release, err := hspm.Upgrade(installOpts)
-		if release != nil {
-			defer hspm.Uninstall(options.UninstallOptions{
-				Name: installOpts.Name,
-			})
-		}
-
-		is.NoError(err, "should successfully install release")
+		require.NoError(t, err, "should successfully install release")
 		is.NotNil(release, "should return non-nil release")
+		defer func() {
+			err := hspm.Uninstall(options.UninstallOptions{Name: installOpts.Name})
+			require.NoError(t, err)
+		}()
+
 		is.Equal("test-nginx", release.Name, "release name should match")
 		is.Equal(1, release.Version, "release version should be 1")
 		is.NotEmpty(release.Manifest, "release manifest should not be empty")
@@ -45,8 +44,11 @@ func Test_Install(t *testing.T) {
 	t.Run("successfully installs nginx with values", func(t *testing.T) {
 		// SDK equivalent of: helm install test-nginx-2 --repo https://kubernetes.github.io/ingress-nginx nginx --values /tmp/helm-values3161785816
 		values, err := test.CreateValuesFile("service:\n  port:  8081")
-		is.NoError(err, "should create a values file")
-		defer os.Remove(values)
+		require.NoError(t, err, "should create a values file")
+		defer func() {
+			err := os.Remove(values)
+			require.NoError(t, err)
+		}()
 
 		installOpts := options.InstallOptions{
 			Name:       "test-nginx-2",
@@ -55,19 +57,17 @@ func Test_Install(t *testing.T) {
 			ValuesFile: values,
 		}
 
-		hspm.Uninstall(options.UninstallOptions{
-			Name: installOpts.Name,
-		})
+		err = hspm.Uninstall(options.UninstallOptions{Name: installOpts.Name})
+		require.NoError(t, err)
 
 		release, err := hspm.Upgrade(installOpts)
-		if release != nil {
-			defer hspm.Uninstall(options.UninstallOptions{
-				Name: installOpts.Name,
-			})
-		}
-
-		is.NoError(err, "should successfully install release")
+		require.NoError(t, err, "should successfully install release")
 		is.NotNil(release, "should return non-nil release")
+		defer func() {
+			err := hspm.Uninstall(options.UninstallOptions{Name: installOpts.Name})
+			require.NoError(t, err)
+		}()
+
 		is.Equal("test-nginx-2", release.Name, "release name should match")
 		is.Equal(1, release.Version, "release version should be 1")
 		is.NotEmpty(release.Manifest, "release manifest should not be empty")
@@ -81,19 +81,17 @@ func Test_Install(t *testing.T) {
 			Repo:  "https://portainer.github.io/k8s/",
 		}
 
-		hspm.Uninstall(options.UninstallOptions{
-			Name: installOpts.Name,
-		})
+		err := hspm.Uninstall(options.UninstallOptions{Name: installOpts.Name})
+		require.NoError(t, err)
 
 		release, err := hspm.Upgrade(installOpts)
-		if release != nil {
-			defer hspm.Uninstall(options.UninstallOptions{
-				Name: installOpts.Name,
-			})
-		}
-
-		is.NoError(err, "should successfully install release")
+		require.NoError(t, err, "should successfully install release")
 		is.NotNil(release, "should return non-nil release")
+		defer func() {
+			err := hspm.Uninstall(options.UninstallOptions{Name: installOpts.Name})
+			require.NoError(t, err)
+		}()
+
 		is.Equal("portainer-test", release.Name, "release name should match")
 		is.Equal(1, release.Version, "release version should be 1")
 		is.NotEmpty(release.Manifest, "release manifest should not be empty")
@@ -102,8 +100,11 @@ func Test_Install(t *testing.T) {
 	t.Run("install with values as string", func(t *testing.T) {
 		// First create a values file since InstallOptions doesn't support values as string directly
 		values, err := test.CreateValuesFile("service:\n  port:  8082")
-		is.NoError(err, "should create a values file")
-		defer os.Remove(values)
+		require.NoError(t, err, "should create a values file")
+		defer func() {
+			err := os.Remove(values)
+			require.NoError(t, err)
+		}()
 
 		// Install with values file
 		installOpts := options.InstallOptions{
@@ -113,19 +114,17 @@ func Test_Install(t *testing.T) {
 			ValuesFile: values,
 		}
 
-		hspm.Uninstall(options.UninstallOptions{
-			Name: installOpts.Name,
-		})
+		err = hspm.Uninstall(options.UninstallOptions{Name: installOpts.Name})
+		require.NoError(t, err)
 
 		release, err := hspm.Upgrade(installOpts)
-		if release != nil {
-			defer hspm.Uninstall(options.UninstallOptions{
-				Name: installOpts.Name,
-			})
-		}
-
-		is.NoError(err, "should successfully install release")
+		require.NoError(t, err, "should successfully install release")
 		is.NotNil(release, "should return non-nil release")
+		defer func() {
+			err := hspm.Uninstall(options.UninstallOptions{Name: installOpts.Name})
+			require.NoError(t, err)
+		}()
+
 		is.Equal("test-nginx-3", release.Name, "release name should match")
 	})
 
@@ -138,19 +137,17 @@ func Test_Install(t *testing.T) {
 			Namespace: "default",
 		}
 
-		hspm.Uninstall(options.UninstallOptions{
-			Name: installOpts.Name,
-		})
+		err := hspm.Uninstall(options.UninstallOptions{Name: installOpts.Name})
+		require.NoError(t, err)
 
 		release, err := hspm.Upgrade(installOpts)
-		if release != nil {
-			defer hspm.Uninstall(options.UninstallOptions{
-				Name: installOpts.Name,
-			})
-		}
-
-		is.NoError(err, "should successfully install release")
+		require.NoError(t, err, "should successfully install release")
 		is.NotNil(release, "should return non-nil release")
+		defer func() {
+			err := hspm.Uninstall(options.UninstallOptions{Name: installOpts.Name})
+			require.NoError(t, err)
+		}()
+
 		is.Equal("test-nginx-4", release.Name, "release name should match")
 		is.Equal("default", release.Namespace, "release namespace should match")
 	})
@@ -161,13 +158,12 @@ func Test_Install(t *testing.T) {
 			Repo:  "https://kubernetes.github.io/ingress-nginx",
 		}
 
-		hspm.Uninstall(options.UninstallOptions{
-			Name: installOpts.Name,
-		})
+		err := hspm.Uninstall(options.UninstallOptions{Name: installOpts.Name})
+		require.NoError(t, err)
 
-		_, err := hspm.Upgrade(installOpts)
+		_, err = hspm.Upgrade(installOpts)
 
-		is.Error(err, "should return an error when name is not provided")
+		require.Error(t, err, "should return an error when name is not provided")
 		// is.Equal(err.Error(), "name is required for helm release installation")
 	})
 
@@ -179,7 +175,7 @@ func Test_Install(t *testing.T) {
 			Repo:  "https://kubernetes.github.io/ingress-nginx",
 		}
 		_, err := hspm.Upgrade(installOpts)
-		is.Error(err, "should return error when chart doesn't exist")
+		require.Error(t, err, "should return error when chart doesn't exist")
 	})
 
 	t.Run("install with invalid repo", func(t *testing.T) {
@@ -190,11 +186,10 @@ func Test_Install(t *testing.T) {
 			Repo:  "https://non-existent-repo.example.com",
 		}
 
-		hspm.Uninstall(options.UninstallOptions{
-			Name: installOpts.Name,
-		})
+		err := hspm.Uninstall(options.UninstallOptions{Name: installOpts.Name})
+		require.NoError(t, err)
 
-		_, err := hspm.Upgrade(installOpts)
-		is.Error(err, "should return error when repo doesn't exist")
+		_, err = hspm.Upgrade(installOpts)
+		require.Error(t, err, "should return error when repo doesn't exist")
 	})
 }

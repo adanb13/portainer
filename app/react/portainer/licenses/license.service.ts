@@ -1,7 +1,7 @@
 import _ from 'lodash';
 import { AxiosError } from 'axios';
 
-import axios, { parseAxiosError } from '@/portainer/services/axios';
+import axios, { parseAxiosError } from '@/portainer/services/axios/axios';
 
 import { License, LicenseInfo } from './types';
 
@@ -112,7 +112,7 @@ export function subscribe(listener: Listener) {
 }
 
 export function unsubscribe(listener: Listener) {
-  _.remove<Listener>(store.listeners, listener);
+  _.remove(store.listeners, listener);
 }
 
 function buildUrl(action = '') {

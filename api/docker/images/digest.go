@@ -7,12 +7,12 @@ import (
 
 	dockerclient "github.com/portainer/portainer/api/docker/client"
 
-	"github.com/containers/image/v5/docker"
-	imagetypes "github.com/containers/image/v5/types"
-	"github.com/docker/docker/api/types"
+	"github.com/docker/docker/api/types/image"
 	"github.com/opencontainers/go-digest"
 	"github.com/pkg/errors"
 	"github.com/rs/zerolog/log"
+	"go.podman.io/image/v5/docker"
+	imagetypes "go.podman.io/image/v5/types"
 )
 
 // Options holds docker registry object options
@@ -85,7 +85,7 @@ func (c *DigestClient) RemoteDigest(image Image) (digest.Digest, error) {
 	return rmDigest, nil
 }
 
-func ParseLocalImage(inspect types.ImageInspect) (*Image, error) {
+func ParseLocalImage(inspect image.InspectResponse) (*Image, error) {
 	if IsLocalImage(inspect) || IsDanglingImage(inspect) {
 		return nil, errors.New("the image is not regular")
 	}

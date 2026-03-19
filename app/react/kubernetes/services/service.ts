@@ -2,7 +2,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { ServiceList } from 'kubernetes-types/core/v1';
 
 import { withGlobalError } from '@/react-tools/react-query';
-import axios, { parseAxiosError } from '@/portainer/services/axios';
+import axios, { parseAxiosError } from '@/portainer/services/axios/axios';
 import { EnvironmentId } from '@/react/portainer/environments/types';
 import { Service } from '@/react/kubernetes/services/types';
 
@@ -23,18 +23,21 @@ export const queryKeys = {
  *
  * @returns The result of the query.
  */
-export function useClusterServices(
+export function useClusterServices<T = Service[]>(
   environmentId: EnvironmentId,
-  options?: { autoRefreshRate?: number; withApplications?: boolean }
+  options?: {
+    autoRefreshRate?: number;
+    withApplications?: boolean;
+    select?: (services: Service[]) => T;
+  }
 ) {
   return useQuery(
     queryKeys.clusterServices(environmentId),
     async () => getClusterServices(environmentId, options?.withApplications),
     {
       ...withGlobalError('Unable to get services.'),
-      refetchInterval() {
-        return options?.autoRefreshRate ?? false;
-      },
+      refetchInterval: options?.autoRefreshRate,
+      select: options?.select,
     }
   );
 }

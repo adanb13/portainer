@@ -111,7 +111,7 @@ func (service *Service) PersistEdgeStack(
 		}
 	}
 
-	if err := tx.EndpointRelation().AddEndpointRelationsForEdgeStack(relatedEndpointIds, stack.ID); err != nil {
+	if err := tx.EndpointRelation().AddEndpointRelationsForEdgeStack(relatedEndpointIds, stack); err != nil {
 		return nil, fmt.Errorf("unable to add endpoint relations: %w", err)
 	}
 
@@ -129,9 +129,6 @@ func (service *Service) updateEndpointRelations(tx dataservices.DataStoreTx, edg
 	for _, endpointID := range relatedEndpointIds {
 		relation, err := endpointRelationService.EndpointRelation(endpointID)
 		if err != nil {
-			if tx.IsErrObjectNotFound(err) {
-				continue
-			}
 			return fmt.Errorf("unable to find endpoint relation in database: %w", err)
 		}
 

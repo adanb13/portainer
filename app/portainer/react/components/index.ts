@@ -6,9 +6,8 @@ import { withReactQuery } from '@/react-tools/withReactQuery';
 import { withUIRouter } from '@/react-tools/withUIRouter';
 import { AnnotationsBeTeaser } from '@/react/kubernetes/annotations/AnnotationsBeTeaser';
 import { withFormValidation } from '@/react-tools/withFormValidation';
-import { GroupAssociationTable } from '@/react/portainer/environments/environment-groups/components/GroupAssociationTable';
-import { AssociatedEnvironmentsSelector } from '@/react/portainer/environments/environment-groups/components/AssociatedEnvironmentsSelector';
 import { withControlledInput } from '@/react-tools/withControlledInput';
+import { NamespacePortainerSelect } from '@/react/kubernetes/applications/components/NamespaceSelector/NamespaceSelector';
 
 import {
   EnvironmentVariablesFieldset,
@@ -31,6 +30,7 @@ import { FallbackImage } from '@@/FallbackImage';
 import { BadgeIcon } from '@@/BadgeIcon';
 import { TeamsSelector } from '@@/TeamsSelector';
 import { TerminalTooltip } from '@@/TerminalTooltip';
+import { Terminal } from '@@/Terminal/Terminal';
 import { PortainerSelect } from '@@/form-components/PortainerSelect';
 import { Slider } from '@@/form-components/Slider';
 import { TagButton } from '@@/TagButton';
@@ -52,6 +52,7 @@ import { accountModule } from './account';
 import { usersModule } from './users';
 import { activityLogsModule } from './activity-logs';
 import { rbacModule } from './rbac';
+import { stacksModule } from './stacks';
 
 export const ngModule = angular
   .module('portainer.app.react.components', [
@@ -65,6 +66,7 @@ export const ngModule = angular
     usersModule,
     activityLogsModule,
     rbacModule,
+    stacksModule,
   ])
   .component(
     'tagSelector',
@@ -97,7 +99,7 @@ export const ngModule = angular
     r2a(Tooltip, ['message', 'position', 'className', 'setHtmlMessage', 'size'])
   )
   .component('terminalTooltip', r2a(TerminalTooltip, []))
-  .component('badge', r2a(Badge, ['type', 'className']))
+  .component('badge', r2a(Badge, ['type', 'className', 'data-cy']))
   .component('fileUploadField', fileUploadField)
   .component('porSwitchField', switchField)
   .component(
@@ -199,11 +201,25 @@ export const ngModule = angular
       'onChange',
       'options',
       'isMulti',
+      'filterOption',
       'isClearable',
       'components',
       'isLoading',
       'noOptionsMessage',
       'aria-label',
+      'size',
+      'loadingMessage',
+      'getOptionValue',
+      'onBlur',
+    ])
+  )
+  .component(
+    'namespacePortainerSelect',
+    r2a(NamespacePortainerSelect, [
+      'value',
+      'onChange',
+      'isDisabled',
+      'options',
     ])
   )
   .component(
@@ -236,6 +252,7 @@ export const ngModule = angular
       'fileName',
       'placeholder',
       'showToolbar',
+      'aria-label',
     ])
   )
   .component(
@@ -253,19 +270,16 @@ export const ngModule = angular
     'inlineLoader',
     r2a(InlineLoader, ['children', 'className', 'size'])
   )
-  .component(
-    'groupAssociationTable',
-    r2a(withReactQuery(GroupAssociationTable), [
-      'onClickRow',
-      'query',
-      'title',
-      'data-cy',
-    ])
-  )
   .component('annotationsBeTeaser', r2a(AnnotationsBeTeaser, []))
   .component(
-    'associatedEndpointsSelector',
-    r2a(withReactQuery(AssociatedEnvironmentsSelector), ['onChange', 'value'])
+    'shellTerminal',
+    r2a(Terminal, [
+      'url',
+      'connect',
+      'onStateChange',
+      'onResize',
+      'initialCommands',
+    ])
   );
 
 export const componentsModule = ngModule.name;

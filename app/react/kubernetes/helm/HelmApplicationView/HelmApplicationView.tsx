@@ -5,26 +5,29 @@ import helm from '@/assets/ico/vendor/helm.svg?c';
 import { PageHeader } from '@/react/components/PageHeader';
 import { useEnvironmentId } from '@/react/hooks/useEnvironmentId';
 import { Authorized } from '@/react/hooks/useUser';
+import { useNamespaceAccessRedirect } from '@/react/kubernetes/namespaces/hooks/useNamespaceAccessRedirect';
 
 import { WidgetTitle, WidgetBody, Widget, Loading } from '@@/Widget';
 import { Card } from '@@/Card';
 import { Alert } from '@@/Alert';
 
 import { HelmRelease } from '../types';
+import { useIsSystemNamespace } from '../../namespaces/queries/useIsSystemNamespace';
+import { useHelmRelease } from '../helmReleaseQueries/useHelmRelease';
+import { useHelmHistory } from '../helmReleaseQueries/useHelmHistory';
 
 import { HelmSummary } from './HelmSummary';
 import { ReleaseTabs } from './ReleaseDetails/ReleaseTabs';
-import { useHelmRelease } from './queries/useHelmRelease';
 import { ChartActions } from './ChartActions/ChartActions';
 import { HelmRevisionList } from './HelmRevisionList';
 import { HelmRevisionListSheet } from './HelmRevisionListSheet';
-import { useHelmHistory } from './queries/useHelmHistory';
 
 export function HelmApplicationView() {
   const environmentId = useEnvironmentId();
   const queryClient = useQueryClient();
   const { params } = useCurrentStateAndParams();
   const { name, namespace, revision } = params;
+  useNamespaceAccessRedirect(namespace, { to: 'kubernetes.applications' });
   const helmHistoryQuery = useHelmHistory(environmentId, name, namespace);
   const latestRevision = helmHistoryQuery.data?.[0]?.version;
   const earlistRevision =
@@ -36,6 +39,8 @@ export function HelmApplicationView() {
     showResources: true,
     revision: selectedRevision,
   });
+
+  const isSystemNamespace = useIsSystemNamespace(namespace);
 
   return (
     <>
@@ -63,28 +68,30 @@ export function HelmApplicationView() {
                         />
                       </div>
                       <Authorized authorizations="K8sApplicationsW">
-                        <ChartActions
-                          environmentId={environmentId}
-                          releaseName={String(name)}
-                          namespace={String(namespace)}
-                          latestRevision={latestRevision ?? 1}
-                          earlistRevision={earlistRevision}
-                          selectedRevision={selectedRevision}
-                          release={helmReleaseQuery.data}
-                          updateRelease={(updatedRelease: HelmRelease) => {
-                            queryClient.setQueryData(
-                              [
-                                environmentId,
-                                'helm',
-                                'releases',
-                                namespace,
-                                name,
-                                true,
-                              ],
-                              updatedRelease
-                            );
-                          }}
-                        />
+                        {!isSystemNamespace && (
+                          <ChartActions
+                            environmentId={environmentId}
+                            releaseName={String(name)}
+                            namespace={String(namespace)}
+                            latestRevision={latestRevision ?? 1}
+                            earlistRevision={earlistRevision}
+                            selectedRevision={selectedRevision}
+                            release={helmReleaseQuery.data}
+                            updateRelease={(updatedRelease: HelmRelease) => {
+                              queryClient.setQueryData(
+                                [
+                                  environmentId,
+                                  'helm',
+                                  'releases',
+                                  namespace,
+                                  name,
+                                  true,
+                                ],
+                                updatedRelease
+                              );
+                            }}
+                          />
+                        )}
                       </Authorized>
                     </div>
                   </WidgetTitle>

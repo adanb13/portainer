@@ -58,9 +58,9 @@ export interface Props<D extends DefaultType> extends AutomationTestingProps {
   getRowId?(row: D): string;
   isRowSelectable?(row: Row<D>): boolean;
   emptyContentLabel?: string;
-  title?: React.ReactNode;
-  titleIcon?: IconProps['icon'];
+  title?: ReactNode;
   titleId?: string;
+  titleIcon?: IconProps['icon'];
   initialTableState?: Partial<TableState>;
   isLoading?: boolean;
   description?: ReactNode;
@@ -70,6 +70,7 @@ export interface Props<D extends DefaultType> extends AutomationTestingProps {
   getRowCanExpand?(row: Row<D>): boolean;
   noWidget?: boolean;
   extendTableOptions?: (options: TableOptions<D>) => TableOptions<D>;
+  onSearchChange?: (search: string) => void;
   includeSearch?: boolean;
   ariaLabel?: string;
   id?: string;
@@ -84,8 +85,8 @@ export function Datatable<D extends DefaultType>({
   getRowId = defaultGetRowId,
   isRowSelectable = () => true,
   title,
-  titleId,
   titleIcon,
+  titleId,
   emptyContentLabel,
   initialTableState = {},
   isLoading,
@@ -97,6 +98,7 @@ export function Datatable<D extends DefaultType>({
   getRowCanExpand,
   'data-cy': dataCy,
   onPageChange = () => {},
+  onSearchChange = () => {},
   page,
   totalCount = dataset.length,
   isServerSidePagination = false,
@@ -158,7 +160,12 @@ export function Datatable<D extends DefaultType>({
       getRowCanExpand,
       getColumnCanGlobalFilter,
       ...(isServerSidePagination
-        ? { manualPagination: true, pageCount }
+        ? {
+            pageCount,
+            manualPagination: true,
+            manualFiltering: true,
+            manualSorting: true,
+          }
         : {
             getSortedRowModel: getSortedRowModel(),
           }),
@@ -231,6 +238,7 @@ export function Datatable<D extends DefaultType>({
   function handleSearchBarChange(search: string) {
     tableInstance.setGlobalFilter({ search });
     settings.setSearch(search);
+    onSearchChange(search);
   }
 
   function handlePageChange(page: number) {
@@ -336,9 +344,6 @@ function filterPrimitive(value: unknown, filterValueLower: string) {
   return false;
 }
 
-function getColumnCanGlobalFilter<D>(column: Column<D, unknown>): boolean {
-  if (column.id === 'select') {
-    return false;
-  }
-  return true;
+function getColumnCanGlobalFilter<D>(column: Column<D>): boolean {
+  return column.id !== 'select';
 }

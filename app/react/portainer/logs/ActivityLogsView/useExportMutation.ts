@@ -1,7 +1,7 @@
 import { useMutation } from '@tanstack/react-query';
 import { saveAs } from 'file-saver';
 
-import axios, { parseAxiosError } from '@/portainer/services/axios';
+import axios, { parseAxiosError } from '@/portainer/services/axios/axios';
 
 import { Query } from './useActivityLogs';
 
@@ -14,7 +14,7 @@ export function useExportMutation() {
 async function exportActivityLogs(query: Omit<Query, 'limit'>) {
   try {
     const { data, headers } = await axios.get<Blob>('/useractivity/logs.csv', {
-      params: { ...query, limit: 2000 },
+      params: { ...query, limit: 0 },
       responseType: 'blob',
       headers: {
         'Content-type': 'text/csv',

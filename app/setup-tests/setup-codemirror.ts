@@ -1,4 +1,9 @@
-import 'vitest-dom/extend-expect';
+import '@testing-library/jest-dom/vitest';
+
+import { mockCodeMirror } from './mock-codemirror';
+
+// Initialize CodeMirror module mocks
+mockCodeMirror();
 
 // Mock Range APIs that CodeMirror needs but JSDOM doesn't provide
 Range.prototype.getBoundingClientRect = () => ({

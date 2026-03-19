@@ -1,7 +1,7 @@
 import { useQuery } from '@tanstack/react-query';
-import { SystemInfo } from 'docker-types/generated/1.41';
+import { SystemInfo } from 'docker-types';
 
-import axios, { parseAxiosError } from '@/portainer/services/axios';
+import axios, { parseAxiosError } from '@/portainer/services/axios/axios';
 import { EnvironmentId } from '@/react/portainer/environments/types';
 
 import { buildDockerProxyUrl } from './buildDockerProxyUrl';
@@ -42,7 +42,7 @@ export function useIsWindows(environmentId: EnvironmentId) {
   return !!query.data;
 }
 
-export function useIsStandAlone(environmentId: EnvironmentId) {
+export function useIsStandAlone(environmentId: EnvironmentId | undefined) {
   const query = useInfo(environmentId, {
     select: (info) => !info.Swarm?.NodeID,
   });

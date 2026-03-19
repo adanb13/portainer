@@ -1,6 +1,8 @@
 import { TagId } from '@/portainer/tags/types';
 import { DockerSnapshot } from '@/react/docker/snapshots/types';
 
+import { TLSConfiguration } from '../settings/types';
+
 export type EnvironmentGroupId = number;
 
 export type EdgeGroupId = number;
@@ -117,6 +119,8 @@ export interface EnvironmentSecuritySettings {
   allowContainerCapabilitiesForRegularUsers: boolean;
   // Whether non-administrator should be able to use sysctl settings
   allowSysctlSettingForRegularUsers: boolean;
+  // Whether non-administrator should be able to use security-opt settings
+  allowSecurityOptForRegularUsers: boolean;
   // Whether host management features are enabled
   enableHostManagementFeatures: boolean;
 }
@@ -153,7 +157,6 @@ export type Environment = {
   EdgeID?: string;
   EdgeKey: string;
   EdgeCheckinInterval?: number;
-  QueryDate?: number;
   Heartbeat?: boolean;
   LastCheckInDate?: number;
   Name: string;
@@ -167,10 +170,7 @@ export type Environment = {
   Edge: EnvironmentEdge;
   SecuritySettings: EnvironmentSecuritySettings;
   Gpus?: { name: string; value: string }[];
-  TLSConfig?: {
-    TLS: boolean;
-    TLSSkipVerify: boolean;
-  };
+  TLSConfig?: TLSConfiguration;
   AzureCredentials?: {
     ApplicationID: string;
     TenantID: string;
@@ -205,6 +205,8 @@ export enum EnvironmentCreationTypes {
 export enum ContainerEngine {
   Docker = 'docker',
   Podman = 'podman',
+  // an empty container engine means that the endpoint is a Kubernetes endpoint
+  Kubernetes = '',
 }
 
 export enum PlatformType {

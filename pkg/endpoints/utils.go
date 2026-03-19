@@ -1,8 +1,9 @@
 package endpoints
 
 import (
-	"github.com/hashicorp/go-version"
 	portainer "github.com/portainer/portainer/api"
+
+	"github.com/Masterminds/semver/v3"
 )
 
 // IsRegularAgentEndpoint returns true if this is a regular agent endpoint
@@ -36,7 +37,15 @@ func HasDirectConnectivity(endpoint *portainer.Endpoint) bool {
 // IsNewerThan225 returns true if the agent version is newer than 2.25.0
 // this is used to check if the agent is compatible with the new diagnostics feature
 func IsNewerThan225(agentVersion string) bool {
-	v1, _ := version.NewVersion(agentVersion)
-	v2, _ := version.NewVersion("2.25.0")
-	return v1.GreaterThanOrEqual(v2)
+	v1, err := semver.NewVersion(agentVersion)
+	if err != nil || v1 == nil {
+		return false
+	}
+
+	v2, err := semver.NewVersion("2.25.0")
+	if err != nil || v2 == nil {
+		return false
+	}
+
+	return v1.GreaterThanEqual(v2)
 }

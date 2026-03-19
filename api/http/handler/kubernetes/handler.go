@@ -105,6 +105,7 @@ func NewHandler(bouncer security.BouncerService, authorizationService *authoriza
 	endpointRouter.Handle("/cluster_role_bindings", httperror.LoggerHandler(h.getAllKubernetesClusterRoleBindings)).Methods(http.MethodGet)
 	endpointRouter.Handle("/cluster_role_bindings/delete", httperror.LoggerHandler(h.deleteClusterRoleBindings)).Methods(http.MethodPost)
 	endpointRouter.Handle("/describe", httperror.LoggerHandler(h.describeResource)).Methods(http.MethodGet)
+	endpointRouter.Handle("/nodes/{name}/drain", httperror.LoggerHandler(h.drainNode)).Methods(http.MethodPost)
 
 	// namespaces
 	// in the future this piece of code might be in another package (or a few different packages - namespaces/namespace?)
@@ -146,7 +147,7 @@ func (h *Handler) getProxyKubeClient(r *http.Request) (portainer.KubeClient, *ht
 		return nil, httperror.Forbidden(fmt.Sprintf("an error occurred during the getProxyKubeClient operation, permission denied to access the environment /api/kubernetes/%d. Error: ", endpointID), err)
 	}
 
-	cli, ok := h.KubernetesClientFactory.GetProxyKubeClient(strconv.Itoa(endpointID), tokenData.Token)
+	cli, ok := h.KubernetesClientFactory.GetProxyKubeClient(strconv.Itoa(endpointID), strconv.Itoa(int(tokenData.ID)))
 	if !ok {
 		return nil, httperror.InternalServerError("an error occurred during the getProxyKubeClient operation,failed to get proxy KubeClient", nil)
 	}
@@ -176,10 +177,11 @@ func (handler *Handler) kubeClientMiddleware(next http.Handler) http.Handler {
 		tokenData, err := security.RetrieveTokenData(r)
 		if err != nil {
 			httperror.WriteError(w, http.StatusForbidden, "an error occurred during the KubeClientMiddleware operation, permission denied to access the environment. Error: ", err)
+			return
 		}
 
 		// Check if we have a kubeclient against this auth token already, otherwise generate a new one
-		_, ok := handler.KubernetesClientFactory.GetProxyKubeClient(strconv.Itoa(endpointID), tokenData.Token)
+		_, ok := handler.KubernetesClientFactory.GetProxyKubeClient(strconv.Itoa(endpointID), strconv.Itoa(int(tokenData.ID)))
 		if ok {
 			next.ServeHTTP(w, r)
 			return
@@ -199,7 +201,7 @@ func (handler *Handler) kubeClientMiddleware(next http.Handler) http.Handler {
 
 		user, err := security.RetrieveUserFromRequest(r, handler.DataStore)
 		if err != nil {
-			httperror.InternalServerError("an error occurred during the KubeClientMiddleware operation, unable to retrieve the user from request. Error: ", err)
+			httperror.WriteError(w, http.StatusInternalServerError, "an error occurred during the KubeClientMiddleware operation, unable to retrieve the user from request. Error: ", err)
 			return
 		}
 		log.
@@ -254,6 +256,7 @@ func (handler *Handler) kubeClientMiddleware(next http.Handler) http.Handler {
 			httperror.WriteError(w, http.StatusInternalServerError, "an error occurred during the KubeClientMiddleware operation, unable to parse server URL for building kubeconfig. Error: ", err)
 			return
 		}
+
 		serverURL.Scheme = "https"
 		serverURL.Host = "localhost" + handler.KubernetesClientFactory.GetAddrHTTPS()
 		config.Clusters[0].Cluster.Server = serverURL.String()
@@ -263,13 +266,14 @@ func (handler *Handler) kubeClientMiddleware(next http.Handler) http.Handler {
 			httperror.WriteError(w, http.StatusInternalServerError, "an error occurred during the KubeClientMiddleware operation, unable to generate kubeconfig YAML. Error: ", err)
 			return
 		}
+
 		kubeCli, err := handler.KubernetesClientFactory.CreateKubeClientFromKubeConfig(endpoint.Name, []byte(yaml), isKubeAdmin, nonAdminNamespaces)
 		if err != nil {
 			httperror.WriteError(w, http.StatusInternalServerError, "an error occurred during the KubeClientMiddleware operation, unable to create kubernetes client from kubeconfig. Error: ", err)
 			return
 		}
 
-		handler.KubernetesClientFactory.SetProxyKubeClient(strconv.Itoa(int(endpoint.ID)), tokenData.Token, kubeCli)
+		handler.KubernetesClientFactory.SetProxyKubeClient(strconv.Itoa(int(endpoint.ID)), strconv.Itoa(int(tokenData.ID)), kubeCli)
 		next.ServeHTTP(w, r)
 	})
 }

@@ -9,6 +9,7 @@ import (
 	"github.com/portainer/portainer/api/filesystem"
 	gittypes "github.com/portainer/portainer/api/git/types"
 	httperrors "github.com/portainer/portainer/api/http/errors"
+	"github.com/portainer/portainer/api/stacks/stackutils"
 	"github.com/portainer/portainer/pkg/edge"
 	"github.com/portainer/portainer/pkg/libhttp/request"
 	"github.com/portainer/portainer/pkg/validate"
@@ -33,6 +34,8 @@ type edgeStackFromGitRepositoryPayload struct {
 	RepositoryUsername string `example:"myGitUsername"`
 	// Password used in basic authentication. Required when RepositoryAuthentication is true.
 	RepositoryPassword string `example:"myGitPassword"`
+	// RepositoryAuthorizationType is the authorization type to use
+	RepositoryAuthorizationType gittypes.GitCredentialAuthType `example:"0"`
 	// Path to the Stack file inside the Git repository
 	FilePathInRepository string `example:"docker-compose.yml" default:"docker-compose.yml"`
 	// List of identifiers of EdgeGroups
@@ -101,7 +104,7 @@ func (payload *edgeStackFromGitRepositoryPayload) Validate(r *http.Request) erro
 // @failure 500 "Internal server error"
 // @failure 503 "Edge compute features are disabled"
 // @router /edge_stacks/create/repository [post]
-func (handler *Handler) createEdgeStackFromGitRepository(r *http.Request, tx dataservices.DataStoreTx, dryrun bool, userID portainer.UserID) (*portainer.EdgeStack, error) {
+func (handler *Handler) createEdgeStackFromGitRepository(r *http.Request, tx dataservices.DataStoreTx, tokenData *portainer.TokenData, dryrun bool) (*portainer.EdgeStack, error) {
 	var payload edgeStackFromGitRepositoryPayload
 	if err := request.DecodeAndValidateJSONPayload(r, &payload); err != nil {
 		return nil, err
@@ -125,13 +128,17 @@ func (handler *Handler) createEdgeStackFromGitRepository(r *http.Request, tx dat
 
 	if payload.RepositoryAuthentication {
 		repoConfig.Authentication = &gittypes.GitAuthentication{
-			Username: payload.RepositoryUsername,
-			Password: payload.RepositoryPassword,
+			Username:          payload.RepositoryUsername,
+			Password:          payload.RepositoryPassword,
+			AuthorizationType: payload.RepositoryAuthorizationType,
 		}
 	}
 
+	stack.CreatedByUserId = fmt.Sprintf("%d", tokenData.ID)
+	stack.CreatedBy = stackutils.SanitizeLabel(tokenData.Username)
+
 	return handler.edgeStacksService.PersistEdgeStack(tx, stack, func(stackFolder string, relatedEndpointIds []portainer.EndpointID) (composePath string, manifestPath string, projectPath string, err error) {
-		return handler.storeManifestFromGitRepository(tx, stackFolder, relatedEndpointIds, payload.DeploymentType, userID, repoConfig)
+		return handler.storeManifestFromGitRepository(tx, stackFolder, relatedEndpointIds, payload.DeploymentType, tokenData.ID, repoConfig)
 	})
 }
 
@@ -145,12 +152,22 @@ func (handler *Handler) storeManifestFromGitRepository(tx dataservices.DataStore
 	projectPath = handler.FileService.GetEdgeStackProjectPath(stackFolder)
 	repositoryUsername := ""
 	repositoryPassword := ""
+	repositoryAuthType := gittypes.GitCredentialAuthType_Basic
 	if repositoryConfig.Authentication != nil && repositoryConfig.Authentication.Password != "" {
 		repositoryUsername = repositoryConfig.Authentication.Username
 		repositoryPassword = repositoryConfig.Authentication.Password
+		repositoryAuthType = repositoryConfig.Authentication.AuthorizationType
 	}
 
-	if err := handler.GitService.CloneRepository(projectPath, repositoryConfig.URL, repositoryConfig.ReferenceName, repositoryUsername, repositoryPassword, repositoryConfig.TLSSkipVerify); err != nil {
+	if err := handler.GitService.CloneRepository(
+		projectPath,
+		repositoryConfig.URL,
+		repositoryConfig.ReferenceName,
+		repositoryUsername,
+		repositoryPassword,
+		repositoryAuthType,
+		repositoryConfig.TLSSkipVerify,
+	); err != nil {
 		return "", "", "", err
 	}
 

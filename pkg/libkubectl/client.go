@@ -3,6 +3,7 @@ package libkubectl
 import (
 	"bytes"
 	"errors"
+	"fmt"
 
 	"k8s.io/cli-runtime/pkg/genericclioptions"
 	"k8s.io/cli-runtime/pkg/genericiooptions"
@@ -45,7 +46,8 @@ func generateConfigFlags(token, server, namespace, kubeconfigPath string, insecu
 		return nil, errors.New("must provide either a kubeconfig path or a server")
 	}
 
-	configFlags := genericclioptions.NewConfigFlags(true)
+	// Pass 'false' to usePersistentConfig to prevent memory leaks.
+	configFlags := genericclioptions.NewConfigFlags(false)
 	if namespace != "" {
 		configFlags.Namespace = &namespace
 	}
@@ -60,4 +62,8 @@ func generateConfigFlags(token, server, namespace, kubeconfigPath string, insecu
 	configFlags.Insecure = &insecure
 
 	return configFlags, nil
+}
+
+func newKubectlFatalError(code int, msg string) error {
+	return fmt.Errorf("kubectl fatal error (exit code %d): %s", code, msg)
 }

@@ -1,7 +1,7 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 
 import { EnvironmentId } from '@/react/portainer/environments/types';
-import axios from '@/portainer/services/axios';
+import axios from '@/portainer/services/axios/axios';
 import { getAllSettledItems } from '@/portainer/helpers/promise-utils';
 import { withGlobalError } from '@/react-tools/react-query';
 import { notifyError, notifySuccess } from '@/portainer/services/notifications';
@@ -36,7 +36,7 @@ export function useDeleteVolumes(environmentId: EnvironmentId) {
         );
       }
       queryClient.invalidateQueries(queryKeys.storages(environmentId));
-      queryClient.invalidateQueries(queryKeys.volumes(environmentId));
+      return queryClient.invalidateQueries(queryKeys.volumes(environmentId));
     },
     ...withGlobalError('Unable to remove volumes'),
   });

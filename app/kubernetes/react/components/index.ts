@@ -59,6 +59,9 @@ import { EnvironmentVariablesFormSection } from '@/react/kubernetes/applications
 import { kubeEnvVarValidationSchema } from '@/react/kubernetes/applications/components/EnvironmentVariablesFormSection/kubeEnvVarValidationSchema';
 import { IntegratedAppsDatatable } from '@/react/kubernetes/components/IntegratedAppsDatatable/IntegratedAppsDatatable';
 import { HelmTemplates } from '@/react/kubernetes/helm/HelmTemplates/HelmTemplates';
+import { SecretDetailsTable } from '@/react/kubernetes/configs/secrets/ItemView/SecretDetailsTable';
+import { KubernetesSummaryView } from '@/react/kubernetes/summary/KubernetesSummaryView';
+import { SecretItemTabsWidget } from '@/react/kubernetes/configs/secrets/ItemView/SecretItemTabsWidget';
 
 import { namespacesModule } from './namespaces';
 import { clusterManagementModule } from './clusterManagement';
@@ -92,6 +95,7 @@ export const ngModule = angular
       'onChange',
       'placeholder',
       'value',
+      'allowSelectAll',
     ])
   )
   .component(
@@ -126,6 +130,8 @@ export const ngModule = angular
       'data',
       'hideMessage',
       'data-cy',
+      'isLoading',
+      'isError',
     ])
   )
   .component(
@@ -214,6 +220,31 @@ export const ngModule = angular
       'namespace',
       'name',
     ])
+  )
+  .component(
+    'secretDetailsTable',
+    r2a(withUIRouter(withCurrentUser(withReactQuery(SecretDetailsTable))), [
+      'name',
+      'namespace',
+      'secretTypeLabel',
+      'isSystem',
+      'registryId',
+    ])
+  )
+  .component(
+    'secretItemTabsWidget',
+    r2a(withUIRouter(withReactQuery(withCurrentUser(SecretItemTabsWidget))), [
+      'name',
+      'namespace',
+      'secretTypeLabel',
+      'isSystem',
+      'registryId',
+      'resourceId',
+    ])
+  )
+  .component(
+    'kubernetesSummaryViewReact',
+    r2a(KubernetesSummaryView, ['actions', 'cpuLimit', 'memoryLimit'])
   );
 
 export const componentsModule = ngModule.name;

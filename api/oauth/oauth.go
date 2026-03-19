@@ -12,7 +12,7 @@ import (
 
 	portainer "github.com/portainer/portainer/api"
 
-	"github.com/golang-jwt/jwt/v4"
+	"github.com/golang-jwt/jwt/v5"
 	"github.com/pkg/errors"
 	"github.com/rs/zerolog/log"
 	"github.com/segmentio/encoding/json"
@@ -23,15 +23,18 @@ import (
 type Service struct{}
 
 // NewService returns a pointer to a new instance of this service
-func NewService() *Service {
-	return &Service{}
+func NewService() Service {
+	return Service{}
 }
 
 // Authenticate takes an access code and exchanges it for an access token from portainer OAuthSettings token environment(endpoint).
 // On success, it will then return the username and token expiry time associated to authenticated user by fetching this information
 // from the resource server and matching it with the user identifier setting.
-func (*Service) Authenticate(code string, configuration *portainer.OAuthSettings) (string, error) {
-	token, err := GetOAuthToken(code, configuration)
+func (Service) Authenticate(ctx context.Context, code string, configuration *portainer.OAuthSettings) (string, error) {
+	ctx, cancel := context.WithTimeout(ctx, time.Minute)
+	defer cancel()
+
+	token, err := GetOAuthToken(ctx, code, configuration)
 	if err != nil {
 		log.Error().Err(err).Msg("failed retrieving oauth token")
 
@@ -43,7 +46,7 @@ func (*Service) Authenticate(code string, configuration *portainer.OAuthSettings
 		log.Error().Err(err).Msg("failed parsing id_token")
 	}
 
-	resource, err := GetResource(token.AccessToken, configuration.ResourceURI)
+	resource, err := GetResource(ctx, token.AccessToken, configuration.ResourceURI)
 	if err != nil {
 		log.Error().Err(err).Msg("failed retrieving resource")
 
@@ -62,16 +65,13 @@ func (*Service) Authenticate(code string, configuration *portainer.OAuthSettings
 	return username, nil
 }
 
-func GetOAuthToken(code string, configuration *portainer.OAuthSettings) (*oauth2.Token, error) {
+func GetOAuthToken(ctx context.Context, code string, configuration *portainer.OAuthSettings) (*oauth2.Token, error) {
 	unescapedCode, err := url.QueryUnescape(code)
 	if err != nil {
 		return nil, err
 	}
 
 	config := buildConfig(configuration)
-
-	ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
-	defer cancel()
 
 	return config.Exchange(ctx, unescapedCode)
 }
@@ -87,9 +87,7 @@ func GetIdToken(token *oauth2.Token) (map[string]any, error) {
 		return tokenData, nil
 	}
 
-	jwtParser := jwt.Parser{
-		SkipClaimsValidation: true,
-	}
+	jwtParser := jwt.NewParser(jwt.WithoutClaimsValidation())
 
 	t, _, err := jwtParser.ParseUnverified(idToken.(string), jwt.MapClaims{})
 	if err != nil {
@@ -97,28 +95,29 @@ func GetIdToken(token *oauth2.Token) (map[string]any, error) {
 	}
 
 	if claims, ok := t.Claims.(jwt.MapClaims); ok {
-		for k, v := range claims {
-			tokenData[k] = v
-		}
+		maps.Copy(tokenData, claims)
 	}
 
 	return tokenData, nil
 }
 
-func GetResource(token string, resourceURI string) (map[string]any, error) {
-	req, err := http.NewRequest(http.MethodGet, resourceURI, nil)
+func GetResource(ctx context.Context, token string, resourceURI string) (map[string]any, error) {
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, resourceURI, nil)
 	if err != nil {
 		return nil, err
 	}
 
-	client := &http.Client{}
 	req.Header.Set("Authorization", "Bearer "+token)
 
-	resp, err := client.Do(req)
+	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
 		return nil, err
 	}
-	defer resp.Body.Close()
+	defer func() {
+		if err := resp.Body.Close(); err != nil {
+			log.Warn().Err(err).Msg("failed to close response body")
+		}
+	}()
 
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {
@@ -132,9 +131,19 @@ func GetResource(token string, resourceURI string) (map[string]any, error) {
 		}
 	}
 
-	content, _, err := mime.ParseMediaType(resp.Header.Get("Content-Type"))
+	// Some OAuth providers (e.g. Cloudflare Access) return malformed Content-Type headers
+	// (e.g. "application/json; charset=utf-8, application/json") that mime.ParseMediaType
+	// cannot parse. We intentionally ignore that error: if parsing fails, content is empty,
+	// the urlencoded branch is skipped, and json.Unmarshal below acts as the final validator.
+	originalContentType := resp.Header.Get("Content-Type")
+	content, _, err := mime.ParseMediaType(originalContentType)
 	if err != nil {
-		return nil, err
+		log.Debug().
+			Err(err).
+			Str("context", "OAuthResourceFetch").
+			Str("original_content_type", originalContentType).
+			Str("parsed_content_type", content).
+			Msg("Failed to parse Content-Type header from resource endpoint, falling back to JSON")
 	}
 
 	if content == "application/x-www-form-urlencoded" || content == "text/plain" {
